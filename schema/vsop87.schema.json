@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VSOP87 planetary theory coefficients",
+  "description": "Planetary position coefficients from VSOP87 (Bretagnon & Francou 1988, IMCCE). Versions A and E are stored separately.",
+  "type": "object",
+  "required": ["version", "source", "planets"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "enum": ["A", "B", "C", "D", "E"],
+      "description": "VSOP87 version letter. A = heliocentric rectangular J2000, E = barycentric rectangular J2000."
+    },
+    "source": { "type": "string" },
+    "note": { "type": "string" },
+    "planets": {
+      "type": "object",
+      "description": "Map from planet name (e.g. EARTH, MARS) to coordinate blocks.",
+      "additionalProperties": {
+        "type": "object",
+        "description": "Map from coordinate axis (X, Y, Z or L, B, R depending on version) to T-power series.",
+        "additionalProperties": {
+          "type": "object",
+          "description": "Map from T-power index (\"0\"..\"5\") to list of terms.",
+          "additionalProperties": {
+            "type": "array",
+            "description": "List of VSOP87 terms for this planet/coord/T-power.",
+            "items": {
+              "type": "object",
+              "required": ["a", "b", "c"],
+              "properties": {
+                "a": { "type": "number", "description": "Amplitude." },
+                "b": { "type": "number", "description": "Phase (radians)." },
+                "c": { "type": "number", "description": "Frequency (radians/millennium)." }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
