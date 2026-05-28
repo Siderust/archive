@@ -19,7 +19,7 @@ archive/
 ├── LICENSE
 ├── MANIFEST.toml                ← top-level registry of dataset families
 ├── schema/                      ← machine-readable manifest specifications
-├── crates/                      ← reusable Rust bindings (siderust-archive-data)
+├── crates/                      ← reusable Rust bindings (siderust-archive)
 ├── generators/                  ← standalone Rust binary crates that produce data
 ├── tools/                       ← validate / convert utilities
 ├── vsop87/                      ← VSOP87 planetary theory (raw + manifest)
@@ -37,17 +37,25 @@ archive/
 ## Rust bindings
 
 The archive ships a reusable Rust crate,
-[`crates/siderust-archive-data`](crates/siderust-archive-data), that provides
+[`crates/siderust-archive`](crates/siderust-archive), that provides
 the shared data-access layer: TOML manifest parsing, SHA-256 verification,
-provenance, and runtime download of IERS time data. Because the archive is a
-git submodule, any repository can reuse it via a path dependency:
+provenance, and runtime download of IERS time data. **The crate is published
+to [crates.io](https://crates.io/crates/siderust-archive)**, so downstream
+projects no longer need to vendor the archive as a git submodule:
 
 ```toml
-siderust-archive-data = { path = "archive/crates/siderust-archive-data", features = ["fetch"] }
+# Manifest + checksum only:
+siderust-archive = "0.1"
+
+# IERS time-data types + parsers (e.g. tempoch):
+siderust-archive = { version = "0.1", features = ["time"] }
+
+# Full runtime download manager:
+siderust-archive = { version = "0.1", features = ["fetch"] }
 ```
 
 The crate declares an empty `[workspace]` table so it is never absorbed into a
-consuming repository's cargo workspace.
+consuming repository's cargo workspace when consumed via a `path` dependency.
 
 
 ## Conventions

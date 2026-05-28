@@ -1,0 +1,46 @@
+name: Publish
+
+# Manually publish a tagged release of `siderust-archive` to crates.io. Use
+# `workflow_dispatch` when you want a non-automated release (e.g. minor/major
+# bumps, API additions). For weekly data-refresh patches, see
+# `update-time-data.yml`.
+#
+# Required repository secret:
+#   CARGO_REGISTRY_TOKEN  - crates.io API token with publish rights on
+#                           `siderust-archive`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing git tag to publish (e.g. v0.1.1). Must already exist on main."
+        required: true
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to crates.io
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test
+        working-directory: crates/siderust-archive
+        run: cargo test --all-features
+      - name: Publish
+        working-directory: crates/siderust-archive
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish

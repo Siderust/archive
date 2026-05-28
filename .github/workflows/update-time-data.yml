@@ -1,0 +1,148 @@
+name: Update Time Data
+
+# Runs every Monday at 05:23 UTC and refreshes the canonical IERS raw files
+# under `time/eop/raw/` (plus their provenance JSON). If any file changed,
+# commits the update to `main` and triggers a patch-version publish to
+# crates.io.
+#
+# Required repository secret:
+#   CARGO_REGISTRY_TOKEN  - crates.io API token with publish rights on
+#                           `siderust-archive`.
+#
+# WIP guard: if any commit exists on main since the last `v*.*.*` tag that
+# touches files outside `time/eop/raw/**`, the publish job is skipped (the
+# refresh commit itself is excluded by the pathspec), to avoid shipping
+# unreviewed feature work as a data-refresh patch release.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Cron is UTC. Monday 05:23 UTC.
+    - cron: "23 5 * * 1"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-time-data
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    name: Refresh IERS raw files
+    runs-on: ubuntu-latest
+    outputs:
+      data_changed: ${{ steps.commit.outputs.data_changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Run updater
+        working-directory: crates/siderust-archive
+        run: |
+          cargo run --release --features fetch \
+            --bin siderust-archive-update-time-data -- \
+            --archive-root "${GITHUB_WORKSPACE}"
+
+      - name: Validate the refreshed bundle
+        working-directory: crates/siderust-archive
+        run: cargo test --all-features
+
+      - name: Commit and push if changed
+        id: commit
+        env:
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: |
+          set -euo pipefail
+          git add time/eop/raw/
+          if git diff --cached --quiet; then
+            echo "No IERS data changes; skipping commit."
+            echo "data_changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "chore: refresh IERS time-data bundle"
+          git push origin HEAD:main
+          echo "data_changed=true" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish patch release to crates.io
+    runs-on: ubuntu-latest
+    needs: refresh
+    if: needs.refresh.outputs.data_changed == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: WIP guard
+        id: wip
+        run: |
+          set -euo pipefail
+          LAST_TAG=$(git describe --tags --abbrev=0 --match "v[0-9]*.[0-9]*.[0-9]*" 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            echo "No version tag found; skipping WIP check."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Last version tag: $LAST_TAG"
+          NON_DATA=$(git log "$LAST_TAG"..HEAD --oneline -- ':!time/eop/raw/**' || true)
+          if [ -n "$NON_DATA" ]; then
+            echo "::warning::WIP detected — non-data commits exist since $LAST_TAG. Skipping auto-publish."
+            echo "Commits found:"
+            echo "$NON_DATA"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No WIP commits detected since $LAST_TAG. Proceeding."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump patch version
+        id: versions
+        if: steps.wip.outputs.skip != 'true'
+        working-directory: crates/siderust-archive
+        run: |
+          set -euo pipefail
+          CUR=$(grep -m1 '^version' Cargo.toml | sed -E 's/version *= *"([^"]+)"/\1/')
+          MAJOR=$(echo "$CUR" | cut -d. -f1)
+          MINOR=$(echo "$CUR" | cut -d. -f2)
+          PATCH=$(echo "$CUR" | cut -d. -f3)
+          NEW="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          sed -i -E "s/^version *= *\"${CUR}\"/version = \"${NEW}\"/" Cargo.toml
+          echo "Bumped siderust-archive ${CUR} -> ${NEW}"
+          echo "version=${NEW}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit, tag, push
+        if: steps.wip.outputs.skip != 'true'
+        env:
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.versions.outputs.version }}"
+          git add crates/siderust-archive/Cargo.toml
+          git commit -m "chore(release): siderust-archive v${VERSION}"
+          git tag -a "v${VERSION}" -m "Release ${VERSION} (automated data-refresh patch)"
+          git push origin HEAD:main --tags
+
+      - name: Publish to crates.io
+        if: steps.wip.outputs.skip != 'true'
+        working-directory: crates/siderust-archive
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish

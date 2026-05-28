@@ -7,12 +7,12 @@
 //! default. Run it explicitly with:
 //!
 //! ```text
-//! cargo test -p siderust-archive-data --features fetch -- --ignored
+//! cargo test -p siderust-archive --features fetch -- --ignored
 //! ```
 
 #![cfg(feature = "fetch")]
 
-use siderust_archive_data::time::TimeDataManager;
+use siderust_archive::time::TimeDataManager;
 
 #[test]
 #[ignore = "performs live network downloads from IERS/USNO"]
