@@ -22,6 +22,10 @@ notes = """
 Leap-second kernels are not yet committed under `leap-seconds/`. The expected
 file is `leap-seconds/naif0012.tls` (or the latest NAIF release). Once added,
 populate `[[files]]` and re-run the validator.
+
+IERS Earth Orientation Parameters and ΔT live in the sibling sub-dataset
+`time/eop/` (see `time/eop/manifest.toml`); those raw files are fetched at
+runtime by the `siderust-archive-data` crate rather than committed.
 """
 
 [[references]]

@@ -1,0 +1,52 @@
+# IERS Earth Orientation Parameters (EOP) and ΔT.
+#
+# Canonical, repo-agnostic home for the IERS time data formerly embedded in
+# tempoch as a 5.3 MB generated Rust array (`eop_data.rs`). The raw upstream
+# files are NOT committed here (they are large and updated daily); instead they
+# are downloaded on demand at runtime by the `siderust-archive-data` crate
+# (`time::TimeDataManager`, `fetch` feature), which verifies their SHA-256 and
+# records a provenance entry. The `raw/` directory is the runtime cache target
+# and the location a maintainer would commit a frozen snapshot to if desired.
+
+schema_version    = 1
+dataset_id        = "time-iers-eop"
+dataset_kind      = "time-scale"
+source            = "IERS Bulletin A + EOP 14 C04 combined daily series (finals2000A.all); USNO ΔT (deltat.data / deltat.preds)"
+generator         = "upstream"
+generator_version = "iers-finals2000A"
+generated_at      = "2026-05-28T00:00:00Z"
+time_scale        = "UTC / TAI / UT1"
+frame             = "celestial-pole-offset (IAU 2000A) + polar motion (ITRF)"
+center            = "Earth"
+units             = "arcsec, s, ms, mas"
+valid_from_jd     = 2437665.5
+valid_to_jd       = 2461000.5
+dynamical_model   = "Observed (Bulletin C04) and predicted (Bulletin A) Earth orientation"
+
+notes = """
+The raw files are obtained at runtime, not committed:
+  * finals2000A.all  — IERS daily EOP (PM x/y, UT1-UTC, LOD, dX/dY).
+  * deltat.data      — USNO observed ΔT history.
+  * deltat.preds     — USNO predicted ΔT.
+  * UTC-TAI.history  — IERS leap-second / pre-1972 rubber-second history.
+After a successful fetch, `siderust-archive-data` writes a
+`time_data.provenance.json` next to the cached files recording the fetch
+timestamp and per-file SHA-256. Populate `[[files]]` below from that record if
+a snapshot is committed.
+"""
+
+[[references]]
+citation = "IERS Earth Orientation Parameters, finals2000A.all."
+url      = "https://datacenter.iers.org/data/9/finals2000A.all"
+
+[[references]]
+citation = "USNO ΔT (TT − UT1) observed series."
+url      = "https://maia.usno.navy.mil/ser7/deltat.data"
+
+[[references]]
+citation = "USNO ΔT predictions."
+url      = "https://maia.usno.navy.mil/ser7/deltat.preds"
+
+[[references]]
+citation = "IERS UTC-TAI leap-second history."
+url      = "https://hpiers.obspm.fr/eoppc/bul/bulc/UTC-TAI.history"

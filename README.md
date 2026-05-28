@@ -19,6 +19,7 @@ archive/
 ├── LICENSE
 ├── MANIFEST.toml                ← top-level registry of dataset families
 ├── schema/                      ← machine-readable manifest specifications
+├── crates/                      ← reusable Rust bindings (siderust-archive-data)
 ├── generators/                  ← standalone Rust binary crates that produce data
 ├── tools/                       ← validate / convert utilities
 ├── vsop87/                      ← VSOP87 planetary theory (raw + manifest)
@@ -26,11 +27,28 @@ archive/
 ├── elp2000/                     ← ELP2000-82B lunar theory (raw + manifest)
 ├── pluto/                       ← Meeus 1998 Pluto series (raw + manifest)
 ├── time/leap-seconds/           ← SPICE LSK text kernel
+├── time/eop/                    ← IERS Earth Orientation Parameters + ΔT (fetched at runtime)
 ├── frames/                      ← SPICE FK-style frame definitions
 ├── constants/                   ← SPICE PCK-style body constants
 ├── lagrange/                    ← generated Sun-Earth Lagrange Chebyshev kernels
 └── reports/validation/          ← validator output
 ```
+
+## Rust bindings
+
+The archive ships a reusable Rust crate,
+[`crates/siderust-archive-data`](crates/siderust-archive-data), that provides
+the shared data-access layer: TOML manifest parsing, SHA-256 verification,
+provenance, and runtime download of IERS time data. Because the archive is a
+git submodule, any repository can reuse it via a path dependency:
+
+```toml
+siderust-archive-data = { path = "archive/crates/siderust-archive-data", features = ["fetch"] }
+```
+
+The crate declares an empty `[workspace]` table so it is never absorbed into a
+consuming repository's cargo workspace.
+
 
 ## Conventions
 
