@@ -144,15 +144,24 @@ impl TimeDataBundle {
         &self.provenance
     }
 
-    pub fn eop_observed_end_mjd(&self) -> i32 {
-        observed_end_mjd(&self.eop_points)
+    /// First MJD in the loaded EOP series, or `None` when no EOP data is loaded.
+    pub fn eop_start_mjd(&self) -> Option<i32> {
+        self.eop_points.first().map(|p| p.mjd)
     }
 
-    pub fn eop_end_mjd(&self) -> i32 {
-        self.eop_points
-            .last()
-            .map(|point| point.mjd)
-            .unwrap_or_default()
+    /// Last MJD in the observed (non-predicted) EOP sub-series, or `None` when no EOP data.
+    pub fn eop_observed_end_mjd(&self) -> Option<i32> {
+        let end = observed_end_mjd(&self.eop_points);
+        if end == 0 && self.eop_points.is_empty() {
+            None
+        } else {
+            Some(end)
+        }
+    }
+
+    /// Last MJD in the EOP series (includes predictions), or `None` when no EOP data is loaded.
+    pub fn eop_end_mjd(&self) -> Option<i32> {
+        self.eop_points.last().map(|p| p.mjd)
     }
 
     #[cfg(feature = "fetch")]
@@ -983,8 +992,9 @@ pub fn observed_end_mjd(points: &[EopPoint]) -> i32 {
         .iter()
         .rev()
         .find(|point| point.ut1_observed)
+        .or_else(|| points.first())
         .map(|point| point.mjd)
-        .unwrap_or(points[0].mjd)
+        .unwrap_or(0)
 }
 
 fn col(line: &str, start_1based: usize, end_1based_inclusive: usize) -> Option<&str> {
