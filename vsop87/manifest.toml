@@ -1,0 +1,31 @@
+# VSOP87 planetary theory.
+#
+# Status: pending raw-file migration. The siderust crate currently embeds the
+# coefficients in src/data/compiled/vsop87[ae].rs. The migration plan is to
+# place the upstream IMCCE distribution files in raw/ alongside this manifest
+# and rebuild the embedded tables (or a tiny on-disk binary) from them.
+
+schema_version    = 1
+dataset_id        = "vsop87"
+dataset_kind      = "planetary-theory"
+source            = "Bretagnon, P. and Francou, G. (1988). VSOP87 (IMCCE)"
+generator         = "siderust/import-vsop87"
+generator_version = "pending"
+generated_at      = "2026-05-28T00:00:00Z"
+time_scale        = "TDB-compatible JD"
+frame             = "EclipticMeanJ2000"
+center            = "Sun (A), Solar-System-Barycenter (E)"
+units             = "AU, day"
+valid_from_jd     = 625296.5
+valid_to_jd       = 2816787.5
+dynamical_model   = "VSOP87 versions A (heliocentric rectangular) and E (barycentric rectangular)"
+
+notes = """
+Raw upstream files (`VSOP87A.ear`, `VSOP87E.ear`, …) are not yet committed.
+Once added under `raw/`, populate the `[[files]]` array and run the validator
+to record SHA-256 digests.
+"""
+
+[[references]]
+citation = "Bretagnon, P., Francou, G. (1988). Planetary theories in rectangular and spherical variables. VSOP87 solutions. Astronomy & Astrophysics 202, 309-315."
+url      = "https://ftp.imcce.fr/pub/ephem/planets/vsop87/"

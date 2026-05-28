@@ -1,10 +1,13 @@
 # Siderust Archive
 
-Canonical storage for scientific coefficient tables, LUTs, and Chebyshev fits used by the
+Canonical storage for scientific coefficient tables, kernels, Chebyshev fits,
+and dataset-generation tools used by the
 [Siderust](https://github.com/Siderust/siderust) family of libraries.
 
-All data is stored in language-agnostic formats so that any Siderust language implementation
-(Rust, Python, …) can consume it directly or through its own build pipeline.
+All metadata is stored in **TOML** so that any tooling — Rust, Python, Julia,
+or shell — can consume it directly. Binary payloads (SPICE `.bsp` kernels,
+Siderust Chebyshev Kernel `.sck` files, and raw upstream `.dat` files) are
+kept as-is in their authoritative formats.
 
 ---
 
@@ -12,95 +15,101 @@ All data is stored in language-agnostic formats so that any Siderust language im
 
 ```
 archive/
-├── schema/                     ← JSON Schema files for each dataset
-├── nutation/
-│   └── iau2000a.json           ← IAU 2000A luni-solar + planetary nutation (MHB2000)
-├── pluto/
-│   └── meeus1998.json          ← Pluto abbreviated series (Meeus 1998 ch.36)
-├── vsop87/
-│   ├── vsop87a.json            ← VSOP87 version A — heliocentric rectangular
-│   └── vsop87e.json            ← VSOP87 version E — barycentric rectangular
-├── elp2000/
-│   └── elp2000.json            ← ELP2000-82B lunar series
-└── lagrange/
-    └── vsop87/
-        ├── manifest.json       ← NCOEFF, JD span, fit-error metadata
-        ├── l1.f64le            ← L1 Chebyshev records (flat f64 little-endian binary)
-        ├── l2.f64le
-        ├── l3.f64le
-        ├── l4.f64le
-        └── l5.f64le
+├── README.md
+├── LICENSE
+├── MANIFEST.toml                ← top-level registry of dataset families
+├── schema/                      ← machine-readable manifest specifications
+├── generators/                  ← standalone Rust binary crates that produce data
+├── tools/                       ← validate / convert utilities
+├── vsop87/                      ← VSOP87 planetary theory (raw + manifest)
+├── nutation/                    ← IAU 2000A nutation (raw + manifest)
+├── elp2000/                     ← ELP2000-82B lunar theory (raw + manifest)
+├── pluto/                       ← Meeus 1998 Pluto series (raw + manifest)
+├── time/leap-seconds/           ← SPICE LSK text kernel
+├── frames/                      ← SPICE FK-style frame definitions
+├── constants/                   ← SPICE PCK-style body constants
+├── lagrange/                    ← generated Sun-Earth Lagrange Chebyshev kernels
+└── reports/validation/          ← validator output
 ```
 
----
+## Conventions
 
-## Formats
+- **Format**: every manifest is TOML. JSON is forbidden.
+- **Provenance**: every dataset records source, generator, generator version,
+  git commit if available, validity interval, frame, time scale, units, and
+  SHA-256 checksums.
+- **Reproducibility**: dataset generators are explicit. They are *never*
+  invoked from a downstream consumer's build script.
+- **Determinism**: file SHA-256 digests are committed alongside the data so
+  validators can detect silent corruption.
+- **No giant Rust arrays**: large embedded `.rs` tables in downstream crates
+  are removed and replaced with `include_bytes!`-based loaders or external
+  paths.
 
-### JSON (nutation, pluto, vsop87, elp2000)
+## Manifest schema (v1)
 
-Human-readable, auditable, diff-friendly. Each file has a `source` field documenting the
-original publication, and a `note` field with accuracy information.
+See [`schema/archive-manifest-v1.md`](schema/archive-manifest-v1.md) for the
+authoritative specification. Quick reference:
 
-Schema files in `schema/` describe every field.
+```toml
+schema_version       = 1
+dataset_id           = "vsop87"
+dataset_kind         = "planetary-theory"
+source               = "Bretagnon & Francou 1988 (IMCCE)"
+generator            = "siderust/import-vsop87"
+generator_version    = "0.8.0"
+git_commit           = "deadbeef"
+generated_at         = "2026-05-28T20:00:00Z"
+time_scale           = "TDB-compatible JD"
+frame                = "EclipticMeanJ2000"
+center               = "Sun"
+units                = "AU, day"
+valid_from_jd        = 625296.5
+valid_to_jd          = 2816787.5
+dynamical_model      = "VSOP87 A/E"
 
-### Flat binary f64 LE (lagrange)
+[[files]]
+path   = "raw/vsop87a.dat"
+format = "vsop87-text"
+sha256 = "…"
+bytes  = 0
 
-The Lagrange–Chebyshev records are stored as raw IEEE 754 little-endian `f64` values
-(no header, no framing). A companion `manifest.json` documents the block geometry.
-
-This format was chosen over JSON for the Lagrange data because it is ~3.5× smaller
-(raw bytes vs. decimal text representation of doubles).
-
-Reading in Rust:
-```rust
-let bytes = std::fs::read("l1.f64le")?;
-let floats: Vec<f64> = bytes
-    .chunks_exact(8)
-    .map(|b| f64::from_le_bytes(b.try_into().unwrap()))
-    .collect();
+[[references]]
+citation = "Bretagnon, P., Francou, G. (1988). Planetary theories in rectangular and spherical variables. A&A 202, 309-315."
 ```
 
----
+## Adding a dataset
 
-## Consuming from siderust
+1. Place upstream raw data in `<family>/raw/`.
+2. Create or extend `<family>/manifest.toml`.
+3. Run the validator: `cargo run -p archive-validate -- <family>/manifest.toml`.
+4. Commit and bump the consuming `siderust` submodule pointer.
 
-The `siderust` crate's `build.rs` reads `src/data/archive/` (a committed copy of this
-repository's data) and generates Rust source into `$OUT_DIR` at compile time. No runtime
-I/O is required; all coefficients are embedded in the final binary.
+## Regenerating derived datasets
 
-To update siderust's copy after making changes here, run from the siderust root:
+Each generator documents its own recipe under
+`generators/<name>/README.md`. Generators must:
 
-```sh
-cp -r archive/nutation archive/pluto archive/vsop87 archive/elp2000 archive/lagrange \
-      src/data/archive/
-```
+- write outputs only under `archive/<family>/`,
+- compute SHA-256 for each output,
+- update the family `manifest.toml`,
+- record the git commit and generator version.
 
-Or use the provided sync script:
+## Consuming the archive from Rust
 
-```sh
-scripts/sync-from-archive.sh
-```
+`siderust` accesses the archive through `archive_registry.rs`, an artefact
+emitted by `build.rs` into `OUT_DIR`. Three feature flags control behaviour:
 
----
+- `archive-data`: enable the typed archive registry and runtime loaders.
+- `embedded-data`: also embed selected datasets with `include_bytes!`.
+- `external-data`: enable runtime loading from caller-provided paths.
 
-## Regenerating data from upstream sources
-
-Each dataset directory contains a `README.md` with instructions for regenerating its JSON
-from the canonical upstream source (IMCCE, SOFA, etc.).
-
-For VSOP87 and ELP2000, regeneration is driven by the `regen-data` feature in `siderust`'s
-build script. Run from the siderust root:
-
-```sh
-SIDERUST_REGEN=1 cargo build --features regen-data
-```
-
-This downloads the latest coefficients, parses them, and writes updated JSON to
-`src/data/archive/` (which should then be synced to this repository).
-
----
+Without any of these features the runtime builds with no large data
+dependencies.
 
 ## License
 
-All data in this archive is derived from publicly available scientific publications and
-released under the same [AGPL-3.0-or-later](LICENSE) license as the Siderust project.
+The archive code and tooling are released under the BSD 3-Clause License (see
+[`LICENSE`](LICENSE)). Each upstream dataset retains the license declared by
+its original author; see the per-family `manifest.toml` and
+`references` arrays for attribution.

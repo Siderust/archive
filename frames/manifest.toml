@@ -1,0 +1,24 @@
+# Reference-frame definitions (SPICE FK-style).
+#
+# Skeleton manifest. Future work: add SPICE FK text kernels under this
+# directory describing non-inertial and body-fixed frames used by siderust.
+
+schema_version    = 1
+dataset_id        = "frames-skeleton"
+dataset_kind      = "reference-frame"
+source            = "Skeleton — no payload yet."
+generator         = "n/a"
+generator_version = "n/a"
+generated_at      = "2026-05-28T00:00:00Z"
+time_scale        = "n/a"
+frame             = "n/a"
+center            = "n/a"
+units             = "n/a"
+valid_from_jd     = 0.0
+valid_to_jd       = 0.0
+dynamical_model   = "n/a"
+
+notes = """
+This is a placeholder. Add SPICE FK kernels (e.g. `frames/<frame>.tf`) and
+declare each one under `[[files]]` with its SHA-256 and byte count.
+"""

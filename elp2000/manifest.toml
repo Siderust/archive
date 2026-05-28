@@ -1,0 +1,29 @@
+# ELP2000-82B lunar theory.
+#
+# Status: pending raw-file migration. Currently embedded in
+# src/data/compiled/elp_data.rs.
+
+schema_version    = 1
+dataset_id        = "elp2000-82b"
+dataset_kind      = "lunar-theory"
+source            = "Chapront-Touzé, M. and Chapront, J. (1983). ELP2000-82B (BdL)"
+generator         = "siderust/import-elp2000"
+generator_version = "pending"
+generated_at      = "2026-05-28T00:00:00Z"
+time_scale        = "TDB-compatible JD"
+frame             = "EclipticMeanJ2000"
+center            = "Earth"
+units             = "deg, arcsec, km"
+valid_from_jd     = 1209030.5
+valid_to_jd       = 2816787.5
+dynamical_model   = "ELP2000-82B semi-analytical lunar theory"
+
+notes = """
+Upstream ELP2000-82B series are distributed by Bureau des Longitudes / IMCCE.
+Once raw files are committed to `raw/`, populate `[[files]]` and re-run the
+validator.
+"""
+
+[[references]]
+citation = "Chapront-Touzé, M., Chapront, J. (1983). The lunar ephemeris ELP 2000. Astronomy & Astrophysics 124, 50-62."
+url      = "https://ftp.imcce.fr/pub/ephem/moon/elp82b/"

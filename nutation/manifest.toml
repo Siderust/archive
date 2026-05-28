@@ -1,0 +1,33 @@
+# IAU 2000A nutation tables (MHB2000).
+#
+# Status: pending raw-file migration. The siderust crate currently embeds the
+# luni-solar and planetary tables in src/data/compiled/nut00a_tables.rs.
+
+schema_version    = 1
+dataset_id        = "nutation-iau2000a"
+dataset_kind      = "nutation"
+source            = "Mathews, Herring & Buffett (2002) — IAU 2000A model"
+generator         = "siderust/import-nutation"
+generator_version = "pending"
+generated_at      = "2026-05-28T00:00:00Z"
+time_scale        = "TT"
+frame             = "ICRF"
+center            = "Earth"
+units             = "0.1 microarcsec; t-derivatives in 0.1 microarcsec/century"
+valid_from_jd     = -3000000.0
+valid_to_jd       =  3000000.0
+dynamical_model   = "IAU 2000A precession-nutation (MHB2000)"
+
+notes = """
+Upstream tables are typically distributed inside the SOFA library (`iauNut00a`)
+or as ASCII tables from the IERS. Once raw files are committed to `raw/`,
+populate `[[files]]` and re-run the validator.
+"""
+
+[[references]]
+citation = "Mathews, P. M., Herring, T. A., Buffett, B. A. (2002). Modeling of nutation and precession: New nutation series for nonrigid Earth and insights into the Earth's interior. JGR 107, B4."
+doi      = "10.1029/2001JB000390"
+
+[[references]]
+citation = "IERS Conventions (2010), IERS Technical Note 36."
+url      = "https://www.iers.org/IERS/EN/Publications/TechnicalNotes/tn36.html"

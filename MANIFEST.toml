@@ -1,0 +1,60 @@
+# Siderust Archive — top-level registry.
+#
+# This file is the single entry point that consumers (siderust's build.rs,
+# external pipelines, validators) parse first. Each [[family]] entry points to
+# a per-family manifest.toml that fully describes the contained datasets,
+# their checksums, and provenance.
+#
+# Schema: schema/archive-manifest-v1.md
+
+schema_version = 1
+archive_name   = "siderust-archive"
+archive_version = "0.1.0"
+
+[[family]]
+id        = "vsop87"
+manifest  = "vsop87/manifest.toml"
+kind      = "planetary-theory"
+status    = "pending-migration"
+
+[[family]]
+id        = "nutation"
+manifest  = "nutation/manifest.toml"
+kind      = "nutation"
+status    = "pending-migration"
+
+[[family]]
+id        = "elp2000"
+manifest  = "elp2000/manifest.toml"
+kind      = "lunar-theory"
+status    = "pending-migration"
+
+[[family]]
+id        = "pluto"
+manifest  = "pluto/manifest.toml"
+kind      = "planetary-series"
+status    = "pending-migration"
+
+[[family]]
+id        = "time"
+manifest  = "time/manifest.toml"
+kind      = "time-scale"
+status    = "pending-migration"
+
+[[family]]
+id        = "frames"
+manifest  = "frames/manifest.toml"
+kind      = "reference-frame"
+status    = "skeleton"
+
+[[family]]
+id        = "constants"
+manifest  = "constants/manifest.toml"
+kind      = "body-constants"
+status    = "skeleton"
+
+[[family]]
+id        = "lagrange-sun-earth-vsop87"
+manifest  = "lagrange/vsop87/manifest.toml"
+kind      = "lagrange-chebyshev"
+status    = "partial"

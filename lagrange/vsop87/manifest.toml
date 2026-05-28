@@ -1,0 +1,62 @@
+schema_version = 1
+dataset_id = "lagrange-sun-earth-vsop87"
+dataset_kind = "lagrange-chebyshev"
+source_ephemeris = "vsop87"
+generator = "siderust/generate-lagrange-cheby"
+generator_version = "0.8.0"
+git_commit = "e235139"
+generated_at = "2026-05-28T19:24:26Z"
+
+time_scale = "TDB-compatible JD"
+time_offset_epoch = "J2000.0"
+frame = "EclipticMeanJ2000"
+center = "Solar-System-Barycenter"
+center_id = 0
+units = "km"
+
+valid_from_jd = 2451545
+valid_to_jd = 2451605
+block_seconds = 2764800
+validation_step_seconds = 21600
+chebyshev_degree = 24
+
+dynamical_model = "Restricted-Three-Body (Sun-Earth, analytic)"
+record_layout = "sck-v1: header(64 bytes) + [mid_seconds, radius_seconds, x_c0..x_cn, y_c0..y_cn, z_c0..z_cn]"
+provenance = "Generated from Siderust Sun-Earth Lagrange solver; coefficients fitted to analytic VSOP87 ephemeris."
+
+[frame_ids]
+EclipticMeanJ2000 = 0
+
+[time_scale_ids]
+TDB_J2000_seconds = 0
+
+[target_ids]
+L1 = 3911
+L2 = 3912
+
+[[references]]
+citation = "Szebehely, V. (1967). Theory of Orbits. Academic Press."
+
+[[references]]
+citation = "Bretagnon, P., Francou, G. (1988). Planetary theories in rectangular and spherical variables. A&A 202, 309-315."
+
+[[points]]
+point = "L1"
+target_id = 3911
+file = "l1.sck"
+ncoeff = 24
+record_count = 2
+checksum_sha256 = "f05192b5478df974d6b6430d64d735afd70184a7bec7d7b15afaf5002bbd9da4"
+max_abs_error_m = 8.684245e1
+rms_error_m = 2.671180e1
+
+[[points]]
+point = "L2"
+target_id = 3912
+file = "l2.sck"
+ncoeff = 40
+record_count = 2
+checksum_sha256 = "6581263bf414da33ea3e0f6e9857551050d1391168512d0f9597918975aff952"
+max_abs_error_m = 6.266867e1
+rms_error_m = 1.973526e1
+
