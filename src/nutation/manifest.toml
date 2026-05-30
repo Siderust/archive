@@ -1,0 +1,45 @@
+# IAU 2000A nutation tables (MHB2000).
+
+schema_version    = 1
+dataset_id        = "nutation-iau2000a"
+dataset_kind      = "nutation"
+source            = "Mathews, Herring & Buffett (2002) — IAU 2000A model"
+generator         = "siderust-archive/src/nutation/pipeline.rs"
+generator_version = "0.1.0"
+generated_at      = "2026-05-28T00:00:00Z"
+time_scale        = "TT"
+frame             = "ICRF"
+center            = "Earth"
+units             = "0.1 microarcsec; t-derivatives in 0.1 microarcsec/century"
+valid_from_jd     = -3000000.0
+valid_to_jd       =  3000000.0
+dynamical_model   = "IAU 2000A precession-nutation (MHB2000)"
+
+notes = """
+Tables extracted from SOFA `iauNut00a` / `iauNut00b` and the IERS Conventions
+(2010) Tables 5.3a/5.3b.  IAU 2000B (77 terms) is a truncated subset that
+agrees with 2000A to better than ~1 mas.
+"""
+
+[[files]]
+path   = "raw/nut00a_ls.csv"
+sha256 = "45e72b3aa9771b355a06d22f31941042f74d0068fcbee322c0669433edba9e64"
+bytes  = 32850
+
+[[files]]
+path   = "raw/nut00a_pl.csv"
+sha256 = "5001277952cf3f6183ec384b5e385b7b4a2e4e0ec9c6b04050a25224cdf0b0c6"
+bytes  = 25929
+
+[[files]]
+path   = "raw/nut00b_ls.csv"
+sha256 = "055fe90c8a5679da76d7d8b503826d04cb0c3ff5b805c70ecd4fa7296a683130"
+bytes  = 4364
+
+[[references]]
+citation = "Mathews, P. M., Herring, T. A., Buffett, B. A. (2002). Modeling of nutation and precession: New nutation series for nonrigid Earth and insights into the Earth's interior. JGR 107, B4."
+doi      = "10.1029/2001JB000390"
+
+[[references]]
+citation = "IERS Conventions (2010), IERS Technical Note 36."
+url      = "https://www.iers.org/IERS/EN/Publications/TechnicalNotes/tn36.html"

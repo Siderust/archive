@@ -1,0 +1,70 @@
+[package]
+name = "siderust-archive"
+version = "0.1.0"
+edition = "2021"
+authors = ["Vallés Puig, Ramon <vallespuigramon@gmail.com>"]
+license = "AGPL-3.0-only"
+description = "Reusable Rust bindings for the Siderust Archive: manifests, checksums, provenance, and runtime download of scientific datasets (IERS time data, kernels, planetary theories)."
+repository = "https://github.com/Siderust/archive"
+homepage = "https://github.com/Siderust/archive"
+documentation = "https://docs.rs/siderust-archive"
+readme = "README.md"
+keywords = ["astronomy", "ephemeris", "iers", "spice", "siderust"]
+categories = ["science", "aerospace", "parser-implementations"]
+
+# The archive is its own repository; this crate must stand alone and not be
+# absorbed into a parent repository's cargo workspace.
+[workspace]
+
+[features]
+default = []
+# VSOP87A/E planetary theory tables (build-time generated).
+vsop = []
+# ELP2000-82B lunar theory tables (build-time generated).
+elp = []
+# IERS time-scale data: UTC-TAI, ΔT, EOP types and parsers.
+time = ["bundled-time"]
+# Compiled UTC-TAI / ΔT fallback snapshot (no network).
+bundled-time = []
+# JPL planetary ephemeris download/cache (DE440/DE441).
+jpl = []
+# Runtime network download for IERS and JPL datasets. Implies `time` and `jpl`.
+fetch = ["time", "jpl", "dep:serde_json", "dep:sha2", "dep:ureq"]
+# IAU 2000A/2000B nutation coefficient tables (MHB2000).
+nutation = []
+# EGM2008 geopotential coefficients (low-degree subset).
+gravity = []
+# NRLMSISE-00 atmosphere model table.
+atmosphere = []
+# SPICE-style frame definitions (stub; data pending migration).
+frames = []
+# SPICE-style body constants (stub; data pending migration).
+constants = []
+# Sun-Earth Lagrange Chebyshev kernels (stub; data pending migration).
+lagrange = []
+# Pluto abbreviated series — Meeus (1998) (stub).
+pluto = []
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+serde_json = { version = "1", optional = true }
+sha2 = { version = "0.11", optional = true }
+ureq = { version = "3", optional = true }
+
+[build-dependencies]
+anyhow = "1"
+regex = "1"
+reqwest = { version = "0.13.2", default-features = false, features = ["blocking", "rustls"] }
+sha2 = "0.11"
+walkdir = "2"
+
+[[bin]]
+name = "siderust-archive-update-time-data"
+path = "src/bin/update_time_data.rs"
+required-features = ["fetch"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

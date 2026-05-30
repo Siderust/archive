@@ -1,0 +1,36 @@
+# NRLMSISE-00 atmosphere density table.
+
+schema_version    = 1
+dataset_id        = "atmosphere-nrlmsise00"
+dataset_kind      = "atmosphere"
+source            = "Picone et al. (2002) NRLMSISE-00; Vallado Table 8-4 approximation"
+generator         = "siderust-archive/src/atmosphere/pipeline.rs"
+generator_version = "0.1.0"
+generated_at      = "2026-05-28T00:00:00Z"
+time_scale        = "n/a"
+frame             = "n/a"
+center            = "Earth"
+units             = "km (altitude), kg/m³ (density)"
+valid_from_jd     = 0.0
+valid_to_jd       = 0.0
+dynamical_model   = "NRLMSISE-00 lite approximation (F10.7=140, Ap=15)"
+
+notes = """
+The 18-point lookup table is a representative NRLMSISE-00 output at mean solar
+activity (F10.7 = 140, Ap = 15), suitable for teaching and low-fidelity drag
+propagation.  Accuracy is ±50 % under mean conditions.
+
+For the full NRLMSISE-00 model, see: https://ccmc.gsfc.nasa.gov/models/NRLMSISE00/
+"""
+
+[[files]]
+path   = "raw/nrlmsise_table.csv"
+sha256 = "44f1a40c0a49d3c2ce910b637e718a3393b9f5211dad89503665156a304dfbac"
+bytes  = 311
+
+[[references]]
+citation = "Picone, J. M., Hedin, A. E., Drob, D. P., & Aikin, A. C. (2002). NRLMSISE-00 empirical model of the atmosphere. JGR Space Physics, 107(A12), 1468."
+doi      = "10.1029/2002JA009430"
+
+[[references]]
+citation = "Vallado, D. A. (2013). Fundamentals of Astrodynamics and Applications, 4th ed. Table 8-4."

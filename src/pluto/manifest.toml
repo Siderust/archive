@@ -1,0 +1,29 @@
+# Pluto abbreviated series — Meeus 1998 (Astronomical Algorithms, ch. 37).
+
+schema_version    = 1
+dataset_id        = "pluto-meeus1998"
+dataset_kind      = "planetary-series"
+source            = "Meeus, J. (1998). Astronomical Algorithms, 2nd ed., chapter 37."
+generator         = "siderust-archive/src/pluto/pipeline.rs"
+generator_version = "0.1.0"
+generated_at      = "2026-05-28T00:00:00Z"
+time_scale        = "TDB-compatible JD"
+frame             = "EclipticMeanJ2000"
+center            = "Sun"
+units             = "deg, AU"
+valid_from_jd     = 2415020.5
+valid_to_jd       = 2488070.5
+dynamical_model   = "Meeus 1998 abbreviated Pluto series (low-precision)"
+
+notes = """
+The abbreviated Meeus series is accurate to ~0.1 arcsec over 1885-2099.
+For high-precision applications, use a JPL DE/SPK ephemeris instead.
+"""
+
+[[files]]
+path   = "raw/pluto_tables.csv"
+sha256 = "c2008c22f67d7f8f0b7c8df81ad5f66736be2286eeafb0150b53f961a9f5cb13"
+bytes  = 1526
+
+[[references]]
+citation = "Meeus, J. (1998). Astronomical Algorithms (2nd ed.). Willmann-Bell. Chapter 37."

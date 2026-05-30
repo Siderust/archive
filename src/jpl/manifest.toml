@@ -1,0 +1,63 @@
+# JPL planetary ephemeris SPK kernels (runtime download).
+#
+# These BSP files are too large to commit. They are acquired at runtime via
+# `siderust-archive::runtime::DatasetManager` and cached under
+# `~/.siderust/data/` (override with `SIDERUST_DATA_DIR`).
+
+schema_version    = 1
+dataset_id        = "jpl-de440-de441"
+dataset_kind      = "planetary-ephemeris"
+source            = "JPL NAIF Generic Kernels"
+generator         = "upstream"
+generator_version = "DE440/DE441"
+generated_at      = "2026-05-29T00:00:00Z"
+time_scale        = "TDB"
+frame             = "ICRF"
+center            = "Solar System Barycenter"
+units             = "km"
+valid_from_jd     = 2287184.5
+valid_to_jd       = 2688976.5
+dynamical_model   = "JPL DE440 / DE441"
+
+notes = """
+DE440 covers 1550-01-01 through 2650-01-01. DE441 part 2 extends the same
+model with higher precision for 1550-01-01 through 2650-01-01 at the cost of
+a much larger kernel file (~1.65 GB).
+
+Checksums below match the NAIF generic-kernel releases pinned by
+`siderust-archive::datasets`.
+"""
+
+[[files]]
+path   = "de440.bsp"
+sha256 = "a4ce9bf9b3282becc9f4b2ac3cebe03a2ae7599981aabd7265fd8482fff7c4b5"
+bytes  = 124_000_000
+format = "spk-bsp"
+notes  = "JPL DE440 planetary ephemeris (~120 MB)."
+
+[[files.download]]
+dataset_id = "de440"
+url        = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de440.bsp"
+min_size   = 100_000_000
+size_hint  = "~120 MB"
+
+[[files]]
+path   = "de441_part-2.bsp"
+sha256 = "3abb17dae2d78dd34880377544aacb54892104a0d4462b322cb9f4454d4887f6"
+bytes  = 1_650_000_000
+format = "spk-bsp"
+notes  = "JPL DE441 planetary ephemeris, part 2 (~1.65 GB)."
+
+[[files.download]]
+dataset_id = "de441"
+url        = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de441_part-2.bsp"
+min_size   = 1_500_000_000
+size_hint  = "~1.65 GB"
+
+[[references]]
+citation = "Park, R. S., et al. (2021). The JPL Planetary and Lunar Ephemerides DE440 and DE441."
+url      = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/"
+
+[[references]]
+citation = "NAIF SPICE planetary ephemeris kernel collection."
+url      = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/"

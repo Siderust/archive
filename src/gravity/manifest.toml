@@ -1,0 +1,35 @@
+# EGM2008 geopotential coefficients (low-degree subset, n = 2..=4).
+
+schema_version    = 1
+dataset_id        = "gravity-egm2008-n2-4"
+dataset_kind      = "geopotential"
+source            = "Pavlis et al. (2012) EGM2008; NGA product"
+generator         = "siderust-archive/src/gravity/pipeline.rs"
+generator_version = "0.1.0"
+generated_at      = "2026-05-28T00:00:00Z"
+time_scale        = "n/a"
+frame             = "ITRF"
+center            = "Earth"
+units             = "dimensionless (normalized Stokes coefficients)"
+valid_from_jd     = 0.0
+valid_to_jd       = 0.0
+dynamical_model   = "EGM2008 spherical harmonic geopotential (degree/order 2..4)"
+
+notes = """
+Fully normalized Stokes coefficients C̄ₙₘ and S̄ₙₘ through degree/order 4.
+For higher-degree coefficients, fetch the full EGM2008 product from NGA:
+  https://earth-info.nga.mil/index.php?dir=wgs84&action=wgs84
+"""
+
+[[files]]
+path   = "raw/egm2008_n2_4.csv"
+sha256 = "40ba40ad91439493884f10b8166da6381ad93a7b4b0a9afdb7289ca5048d8611"
+bytes  = 364
+
+[[references]]
+citation = "Pavlis, N. K., Holmes, S. A., Kenyon, S. C., & Factor, J. K. (2012). The development and evaluation of the Earth Gravitational Model 2008 (EGM2008). JGR Solid Earth, 117, B04406."
+doi      = "10.1029/2011JB008916"
+
+[[references]]
+citation = "NGA EGM2008 product page."
+url      = "https://earth-info.nga.mil/index.php?dir=wgs84&action=wgs84"

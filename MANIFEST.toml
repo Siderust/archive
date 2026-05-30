@@ -54,6 +54,12 @@ kind      = "body-constants"
 status    = "skeleton"
 
 [[family]]
+id        = "jpl"
+manifest  = "jpl/manifest.toml"
+kind      = "planetary-ephemeris"
+status    = "active"
+
+[[family]]
 id        = "lagrange-sun-earth-vsop87"
 manifest  = "lagrange/vsop87/manifest.toml"
 kind      = "lagrange-chebyshev"
