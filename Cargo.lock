@@ -711,22 +711,7 @@ dependencies = [
 
 [[package]]
 name = "siderust-archive"
-version = "0.1.2"
-dependencies = [
- "anyhow",
- "chrono",
- "qtty",
- "regex",
- "serde",
- "sha2",
- "toml",
- "ureq",
- "walkdir",
-]
-
-[[package]]
-name = "siderust-archive"
-version = "0.1.2"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c885202514dc0a0795738b019d259482da029d1bc36869c14aab470543fbb65"
 dependencies = [
@@ -737,6 +722,21 @@ dependencies = [
  "serde",
  "sha2",
  "toml",
+ "walkdir",
+]
+
+[[package]]
+name = "siderust-archive"
+version = "0.1.2"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "qtty",
+ "regex",
+ "serde",
+ "sha2",
+ "toml",
+ "ureq",
  "walkdir",
 ]
 
@@ -788,7 +788,7 @@ dependencies = [
  "chrono",
  "qtty",
  "serde",
- "siderust-archive 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "siderust-archive 0.1.1",
 ]
 
 [[package]]
