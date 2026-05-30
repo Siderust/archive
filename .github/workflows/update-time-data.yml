@@ -4,11 +4,15 @@ name: Update Time Data
 # time-data snapshot:
 #
 #   - `src/time/eop/raw/`
+#   - `src/time/eop/manifest.toml`   <- [[files]] checksums refreshed here
 #   - `src/time/bundled/snapshot.rs`
 #
-# The raw snapshot includes `time_data.provenance.toml`. Runtime fetching of
-# current upstream IERS/USNO data remains available to users behind the
-# `fetch` feature via `siderust_archive::time::TimeDataManager`.
+# The raw snapshot includes `time_data.provenance.toml`. The updater also
+# rewrites the managed [[files]] block in `src/time/eop/manifest.toml` with
+# current SHA-256 checksums and byte counts so archive-validate can verify
+# committed payloads. Runtime fetching of current upstream IERS/USNO data
+# remains available to users behind the `fetch` feature via
+# `siderust_archive::time::TimeDataManager`.
 #
 # This workflow must not mutate JPL kernels, VSOP/ELP, nutation, gravity,
 # atmosphere, frames, constants, or derived kernels. Those datasets remain
@@ -26,9 +30,9 @@ name: Update Time Data
 #                           `siderust-archive`.
 #
 # WIP guard: if any commit exists on main since the last `v*.*.*` tag that
-# touches files outside `src/time/eop/raw/**` or `src/time/bundled/snapshot.rs`,
-# the publish job is skipped. This avoids shipping unreviewed feature work as
-# a data-refresh patch release.
+# touches files outside the approved time-data snapshot paths, the publish
+# job is skipped. This avoids shipping unreviewed feature work as a
+# data-refresh patch release.
 
 on:
   workflow_dispatch:
@@ -73,7 +77,7 @@ jobs:
           unexpected=()
           for path in "${changed[@]}"; do
             case "$path" in
-              src/time/eop/raw/*|src/time/bundled/snapshot.rs)
+              src/time/eop/raw/*|src/time/bundled/snapshot.rs|src/time/eop/manifest.toml)
                 ;;
               *)
                 unexpected+=("$path")
@@ -103,7 +107,7 @@ jobs:
           GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
         run: |
           set -euo pipefail
-          git add src/time/eop/raw/ src/time/bundled/snapshot.rs
+          git add src/time/eop/raw/ src/time/bundled/snapshot.rs src/time/eop/manifest.toml
           if git diff --cached --quiet; then
             echo "No IERS/USNO data changes; skipping commit."
             echo "data_changed=false" >> "$GITHUB_OUTPUT"
@@ -139,7 +143,7 @@ jobs:
             exit 0
           fi
           echo "Last version tag: $LAST_TAG"
-          NON_DATA=$(git log "$LAST_TAG"..HEAD --oneline -- ':!src/time/eop/raw/**' ':!src/time/bundled/snapshot.rs' || true)
+          NON_DATA=$(git log "$LAST_TAG"..HEAD --oneline -- ':!src/time/eop/raw/**' ':!src/time/bundled/snapshot.rs' ':!src/time/eop/manifest.toml' || true)
           if [ -n "$NON_DATA" ]; then
             echo "::warning::WIP detected — non-data commits exist since $LAST_TAG. Skipping auto-publish."
             echo "Commits found:"
@@ -238,6 +242,11 @@ jobs:
           PY
           echo "Bumped siderust-archive ${CUR} -> ${NEW}"
           echo "version=${NEW}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish dry-run
+        if: steps.wip.outputs.skip != 'true' && steps.publish_token.outputs.skip != 'true'
+        working-directory: .
+        run: cargo publish --dry-run --allow-dirty -p siderust-archive
 
       - name: Commit, tag, push
         if: steps.wip.outputs.skip != 'true' && steps.publish_token.outputs.skip != 'true'

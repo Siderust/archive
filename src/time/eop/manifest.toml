@@ -56,3 +56,6 @@ url      = "https://maia.usno.navy.mil/ser7/deltat.preds"
 [[references]]
 citation = "IERS UTC-TAI leap-second history."
 url      = "https://hpiers.obspm.fr/eoppc/bul/bulc/UTC-TAI.history"
+
+# BEGIN GENERATED FILE ENTRIES — update-time-data
+# END GENERATED FILE ENTRIES — update-time-data

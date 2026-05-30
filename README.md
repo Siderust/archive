@@ -137,12 +137,16 @@ IERS/USNO time data are operational data. The weekly
 workflow may refresh only:
 
 - `src/time/eop/raw/`
+- `src/time/eop/manifest.toml`
 - `src/time/bundled/snapshot.rs`
 
-The snapshot carries TOML provenance in `time_data.provenance.toml`, and the
-workflow validates manifests before committing or publishing. Runtime fetch is
-still available behind `features = ["fetch"]` for users who want current
-upstream data without waiting for the next committed snapshot.
+The snapshot carries TOML provenance in `time_data.provenance.toml`. After
+refreshing raw files, the updater rewrites the managed `[[files]]` block in
+`src/time/eop/manifest.toml` with current SHA-256 checksums and byte counts
+so `archive-validate` can verify every committed payload. The workflow
+validates manifests before committing or publishing. Runtime fetch is still
+available behind `features = ["fetch"]` for users who want current upstream
+data without waiting for the next committed snapshot.
 
 Other archive families are manual/version-pinned. The time-data workflow must
 not replace JPL kernels, VSOP/ELP, nutation, gravity, atmosphere, frames,

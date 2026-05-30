@@ -50,6 +50,22 @@ const RAW_FILES: [(&str, &str); 4] = [
 
 const PROVENANCE_FILE: &str = "time_data.provenance.toml";
 
+/// Paths and format identifiers for all committed time-data files.
+/// Paths are relative to the `src/time/eop/` directory (the manifest directory).
+const MANIFEST_FILE_SPECS: [(&str, &str); 5] = [
+    ("raw/UTC-TAI.history", "iers-utc-tai-history"),
+    ("raw/deltat.data", "usno-delta-t-observed"),
+    ("raw/deltat.preds", "usno-delta-t-predictions"),
+    ("raw/finals2000A.all", "iers-finals2000a"),
+    (
+        "raw/time_data.provenance.toml",
+        "siderust-time-provenance-toml",
+    ),
+];
+
+const MARKER_BEGIN: &str = "# BEGIN GENERATED FILE ENTRIES \u{2014} update-time-data";
+const MARKER_END: &str = "# END GENERATED FILE ENTRIES \u{2014} update-time-data";
+
 struct CliArgs {
     archive_root: PathBuf,
 }
@@ -200,6 +216,9 @@ fn run(args: &CliArgs) -> Result<String, String> {
         .join("snapshot.rs");
     write_bundled_snapshot(&snapshot_path, &bundle)?;
 
+    let manifest_path = eop_dir.join("manifest.toml");
+    update_manifest_files_block(&manifest_path, &eop_dir)?;
+
     fs::remove_dir_all(&staging).ok();
 
     let summary = format!(
@@ -226,6 +245,72 @@ fn run(args: &CliArgs) -> Result<String, String> {
         snap = snapshot_path,
     );
     Ok(summary)
+}
+
+fn sha256_hex(data: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    let hash = hasher.finalize();
+    hash.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Rewrites the managed `[[files]]` block in `manifest_path` with up-to-date
+/// SHA-256 checksums and byte counts for every committed time-data file.
+///
+/// The managed region is delimited by:
+/// ```text
+/// # BEGIN GENERATED FILE ENTRIES — update-time-data
+/// # END GENERATED FILE ENTRIES — update-time-data
+/// ```
+/// Both markers must already be present in the manifest; the function fails if
+/// either is missing or if the begin marker follows the end marker.
+fn update_manifest_files_block(manifest_path: &Path, manifest_dir: &Path) -> Result<(), String> {
+    let mut entries = String::new();
+    for (rel_path, format) in MANIFEST_FILE_SPECS {
+        let file_path = manifest_dir.join(rel_path);
+        let data = fs::read(&file_path).map_err(|e| {
+            format!(
+                "cannot read {:?} for manifest update (run the updater to populate raw files): {e}",
+                file_path
+            )
+        })?;
+        let bytes = data.len() as u64;
+        let sha256 = sha256_hex(&data);
+        entries.push_str(&format!(
+            "[[files]]\npath   = \"{rel_path}\"\nformat = \"{format}\"\nsha256 = \"{sha256}\"\nbytes  = {bytes}\n\n"
+        ));
+    }
+    // Drop the trailing blank line after the last entry.
+    let entries = entries.trim_end_matches('\n').to_string() + "\n";
+
+    let content = fs::read_to_string(manifest_path)
+        .map_err(|e| format!("cannot read manifest {:?}: {e}", manifest_path))?;
+
+    let begin_pos = content
+        .find(MARKER_BEGIN)
+        .ok_or_else(|| format!("manifest {:?} is missing the begin marker", manifest_path))?;
+    let end_pos = content
+        .find(MARKER_END)
+        .ok_or_else(|| format!("manifest {:?} is missing the end marker", manifest_path))?;
+    if begin_pos >= end_pos {
+        return Err(format!(
+            "manifest {:?}: begin marker appears after end marker",
+            manifest_path
+        ));
+    }
+
+    let before = &content[..begin_pos];
+    let after_end = end_pos + MARKER_END.len();
+    let after = &content[after_end..];
+
+    let new_content = format!("{before}{MARKER_BEGIN}\n{entries}{MARKER_END}{after}");
+
+    let tmp = manifest_path.with_file_name("manifest.toml.new");
+    fs::write(&tmp, &new_content).map_err(|e| format!("cannot write manifest {:?}: {e}", tmp))?;
+    fs::rename(&tmp, manifest_path)
+        .map_err(|e| format!("cannot install manifest {:?}: {e}", manifest_path))?;
+    Ok(())
 }
 
 fn write_bundled_snapshot(

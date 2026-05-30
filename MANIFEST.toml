@@ -54,6 +54,12 @@ kind      = "time-scale"
 status    = "pending-migration"
 
 [[family]]
+id        = "time-eop"
+manifest  = "src/time/eop/manifest.toml"
+kind      = "time-scale"
+status    = "active"
+
+[[family]]
 id        = "frames"
 manifest  = "src/frames/manifest.toml"
 kind      = "reference-frame"
