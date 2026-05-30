@@ -12,6 +12,11 @@ The format is based on Keep a Changelog, and this project uses Semantic Versioni
 
 ### Fixed
 
+## [0.1.1] - 2026-05-30
+
+### Changed
+- Bind vsop lagrange points
+
 ## [0.1.0] - 2026-05-30
 
 ### Added
