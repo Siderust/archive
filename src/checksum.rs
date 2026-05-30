@@ -3,6 +3,11 @@
 
 //! SHA-256 checksum helpers used to verify archive datasets against the
 //! checksums recorded in their manifests / provenance records.
+//!
+//! For compile-time pinning of embedded tables inside `siderust` (via
+//! [`assert_data_checksum!`](https://docs.rs/siderust/latest/siderust/macro.assert_data_checksum.html)),
+//! use `siderust::checksum` instead — that module provides a `const fn`
+//! SHA-256 kernel and is not interchangeable with this runtime API.
 
 /// Compute the lowercase hex SHA-256 digest of `bytes`.
 ///

@@ -12,7 +12,7 @@ JSON is not used anywhere in the archive.
 | `dataset_id` | string | Stable identifier (`vsop87`, `lagrange-sun-earth-vsop87`, …). |
 | `dataset_kind` | string | One of: `planetary-theory`, `lunar-theory`, `nutation`, `planetary-series`, `lagrange-chebyshev`, `time-scale`, `reference-frame`, `body-constants`, `spice-kernel`, `planetary-ephemeris`, `atmosphere-model`, `geopotential`, `atmosphere`. |
 | `source` | string | Human-readable upstream citation. |
-| `generator` | string | Identifier of the producer (e.g. `siderust/generate-lagrange-cheby`). |
+| `generator` | string | Identifier of the producer (e.g. `siderust-archive/tools/generate-lagrange-cheby`). |
 | `generator_version` | string | Producer version (typically a Cargo package version). |
 | `generated_at` | string | RFC 3339 timestamp in UTC. |
 | `time_scale` | string | E.g. `TDB-compatible JD`, `TT`, `UTC`. |
@@ -79,7 +79,7 @@ schema_version       = 1
 dataset_id           = "lagrange-sun-earth-vsop87"
 dataset_kind         = "lagrange-chebyshev"
 source               = "Generated from Siderust VSOP87E Sun-Earth ephemeris."
-generator            = "siderust/generate-lagrange-cheby"
+generator            = "siderust-archive/tools/generate-lagrange-cheby"
 generator_version    = "0.8.0"
 git_commit           = "e235139"
 generated_at         = "2026-05-28T19:34:00Z"

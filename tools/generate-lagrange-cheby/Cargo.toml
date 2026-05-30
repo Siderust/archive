@@ -1,0 +1,16 @@
+[package]
+name = "generate-lagrange-cheby"
+version = "0.1.0"
+edition = "2021"
+license = "BSD-3-Clause"
+description = "Generate Sun-Earth Lagrange Chebyshev SCK kernels for siderust-archive."
+publish = false
+
+[[bin]]
+name = "generate-lagrange-cheby"
+path = "src/main.rs"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+siderust = { path = "../../../siderust", features = ["lagrange-centers"] }
+siderust-archive = { path = "../..", features = ["lagrange"] }
