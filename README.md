@@ -17,31 +17,22 @@ kept as-is in their authoritative formats.
 archive/
 ├── README.md
 ├── LICENSE
+├── Cargo.toml                   ← root-level `siderust-archive` crate manifest
 ├── MANIFEST.toml                ← top-level registry of dataset families
 ├── schema/                      ← machine-readable manifest specifications
-├── crates/                      ← reusable Rust bindings (siderust-archive)
+├── src/                         ← crate sources and bundled datasets
 ├── generators/                  ← standalone Rust binary crates that produce data
 ├── tools/                       ← validate / convert utilities
-├── vsop87/                      ← VSOP87 planetary theory (raw + manifest)
-├── nutation/                    ← IAU 2000A nutation (raw + manifest)
-├── elp2000/                     ← ELP2000-82B lunar theory (raw + manifest)
-├── pluto/                       ← Meeus 1998 Pluto series (raw + manifest)
-├── time/leap-seconds/           ← SPICE LSK text kernel
-├── time/eop/                    ← IERS Earth Orientation Parameters + ΔT (fetched at runtime)
-├── frames/                      ← SPICE FK-style frame definitions
-├── constants/                   ← SPICE PCK-style body constants
-├── lagrange/                    ← generated Sun-Earth Lagrange Chebyshev kernels
 └── reports/validation/          ← validator output
 ```
 
 ## Rust bindings
 
-The archive ships a reusable Rust crate,
-[`crates/siderust-archive`](crates/siderust-archive), that provides
-the shared data-access layer: TOML manifest parsing, SHA-256 verification,
-provenance, and runtime download of IERS time data. **The crate is published
-to [crates.io](https://crates.io/crates/siderust-archive)**, so downstream
-projects no longer need to vendor the archive as a git submodule:
+The archive ships a reusable root-level Rust crate, `siderust-archive`,
+that provides the shared data-access layer: TOML manifest parsing, SHA-256
+verification, provenance, and runtime download of IERS time data. **The crate
+is published to [crates.io](https://crates.io/crates/siderust-archive)**, so
+downstream projects no longer need to vendor the archive as a git submodule:
 
 ```toml
 # Manifest + checksum only:
@@ -98,7 +89,7 @@ dynamical_model      = "VSOP87 A/E"
 path   = "raw/vsop87a.dat"
 format = "vsop87-text"
 sha256 = "…"
-bytes  = 0
+bytes  = 1392704
 
 [[references]]
 citation = "Bretagnon, P., Francou, G. (1988). Planetary theories in rectangular and spherical variables. A&A 202, 309-315."
@@ -106,9 +97,9 @@ citation = "Bretagnon, P., Francou, G. (1988). Planetary theories in rectangular
 
 ## Adding a dataset
 
-1. Place upstream raw data in `<family>/raw/`.
-2. Create or extend `<family>/manifest.toml`.
-3. Run the validator: `cargo run -p archive-validate -- <family>/manifest.toml`.
+1. Place upstream raw data in `src/<family>/raw/`.
+2. Create or extend `src/<family>/manifest.toml` and register it in `MANIFEST.toml`.
+3. Run the validator from the repository root: `cargo run -p archive-validate -- MANIFEST.toml`.
 4. Commit and bump the consuming `siderust` submodule pointer.
 
 ## Regenerating derived datasets
@@ -123,15 +114,16 @@ Each generator documents its own recipe under
 
 ## Consuming the archive from Rust
 
-`siderust` accesses the archive through `archive_registry.rs`, an artefact
-emitted by `build.rs` into `OUT_DIR`. Three feature flags control behaviour:
+Downstream Rust crates depend on `siderust-archive` directly and opt into the
+dataset families they need. Manifest/checksum/provenance APIs are always on;
+feature flags add optional datasets and runtime fetch support:
 
-- `archive-data`: enable the typed archive registry and runtime loaders.
-- `embedded-data`: also embed selected datasets with `include_bytes!`.
-- `external-data`: enable runtime loading from caller-provided paths.
+- `time`, `jpl`, `fetch`
+- `vsop`, `elp`, `nutation`, `gravity`, `atmosphere`
+- `frames`, `constants`, `lagrange`, `pluto`
 
-Without any of these features the runtime builds with no large data
-dependencies.
+Without feature flags the crate stays lightweight and avoids bundling large
+datasets.
 
 ## License
 

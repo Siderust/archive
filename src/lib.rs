@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: BSD-3-Clause
 // Copyright (C) 2026 Vallés Puig, Ramon
 
 //! # siderust-archive
@@ -11,7 +11,7 @@
 //!
 //! | Feature        | Effect |
 //! |----------------|--------|
-//! | `default`      | Manifest + checksum + provenance APIs only. Zero network/crypto dependencies. |
+//! | `default`      | Manifest + checksum + provenance APIs only. Zero network dependencies. |
 //! | `vsop`         | VSOP87A/E planetary theory tables (build-time generated via `build.rs`). |
 //! | `elp`          | ELP2000-82B lunar theory tables (build-time generated via `build.rs`). |
 //! | `time`         | IERS time-scale data: UTC-TAI, ΔT, EOP — types, parsers, bundled snapshot. |

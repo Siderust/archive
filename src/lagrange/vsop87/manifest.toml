@@ -1,6 +1,7 @@
 schema_version = 1
 dataset_id = "lagrange-sun-earth-vsop87"
 dataset_kind = "lagrange-chebyshev"
+source = "Generated from Siderust Sun-Earth Lagrange solver."
 source_ephemeris = "vsop87"
 generator = "siderust/generate-lagrange-cheby"
 generator_version = "0.8.0"
@@ -42,6 +43,36 @@ citation = "Szebehely, V. (1967). Theory of Orbits. Academic Press."
 
 [[references]]
 citation = "Bretagnon, P., Francou, G. (1988). Planetary theories in rectangular and spherical variables. A&A 202, 309-315."
+
+[[files]]
+path = "l1.sck"
+format = "sck-v1"
+sha256 = "59e336dbafaef875de4bc2600d61f5aca217d1171535bbc7958cf8288d94b3e0"
+bytes = 474928
+
+[[files]]
+path = "l2.sck"
+format = "sck-v1"
+sha256 = "5d2f87c99f1e0203a2dea52e92aa5404936fbb9f5aec46f5ec8f6f2cec6e240b"
+bytes = 474928
+
+[[files]]
+path = "l3.sck"
+format = "sck-v1"
+sha256 = "911180b480613f4a3dbab4965a91118f1277db90ae59573fd01e5b8775fef0f1"
+bytes = 474928
+
+[[files]]
+path = "l4.sck"
+format = "sck-v1"
+sha256 = "96a3862b60c8f43650b85c3c4c47f2e3e643914b92e4e14fa9531ec5a17ffb9a"
+bytes = 474928
+
+[[files]]
+path = "l5.sck"
+format = "sck-v1"
+sha256 = "80d3ed89d5c7097c603fcde485b86da23f669c3789c135ee2446d28e2af81440"
+bytes = 474928
 
 [[points]]
 point = "L1"

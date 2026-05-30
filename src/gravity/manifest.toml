@@ -23,6 +23,7 @@ For higher-degree coefficients, fetch the full EGM2008 product from NGA:
 
 [[files]]
 path   = "raw/egm2008_n2_4.csv"
+format = "egm2008-csv"
 sha256 = "40ba40ad91439493884f10b8166da6381ad93a7b4b0a9afdb7289ca5048d8611"
 bytes  = 364
 

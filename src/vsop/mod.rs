@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: BSD-3-Clause
 // Copyright (C) 2026 Vallés Puig, Ramon
 
 //! # VSOP87 Planetary Theory
@@ -36,7 +36,7 @@
 
 pub mod refs;
 
-use qtty::{AstronomicalUnits, Radians};
+use qtty::{AstronomicalUnit, Radian};
 
 /// One VSOP87 coefficient term: `a · cos(b + c·T)`.
 ///
@@ -46,8 +46,8 @@ use qtty::{AstronomicalUnits, Radians};
 ///   qtty unit exists for rad·millennium⁻¹.
 #[derive(Debug, Clone, Copy)]
 pub struct Vsop87 {
-    pub a: AstronomicalUnits,
-    pub b: Radians,
+    pub a: AstronomicalUnit,
+    pub b: Radian,
     pub c: f64,
 }
 

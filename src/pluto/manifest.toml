@@ -22,6 +22,7 @@ For high-precision applications, use a JPL DE/SPK ephemeris instead.
 
 [[files]]
 path   = "raw/pluto_tables.csv"
+format = "meeus-pluto-csv"
 sha256 = "c2008c22f67d7f8f0b7c8df81ad5f66736be2286eeafb0150b53f961a9f5cb13"
 bytes  = 1526
 

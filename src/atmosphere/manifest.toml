@@ -25,6 +25,7 @@ For the full NRLMSISE-00 model, see: https://ccmc.gsfc.nasa.gov/models/NRLMSISE0
 
 [[files]]
 path   = "raw/nrlmsise_table.csv"
+format = "nrlmsise-table-csv"
 sha256 = "44f1a40c0a49d3c2ce910b637e718a3393b9f5211dad89503665156a304dfbac"
 bytes  = 311
 

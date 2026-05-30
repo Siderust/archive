@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: BSD-3-Clause
 // Copyright (C) 2026 Vallés Puig, Ramon
 
 //! IERS time-scale data: leap seconds (UTC-TAI), ΔT, and Earth Orientation
@@ -979,8 +979,12 @@ pub fn parse_eop_finals(text: &str) -> Result<Vec<EopPoint>, String> {
             pm_yp: col(line, 38, 46).and_then(parse_f64).map(Arcsecond::new),
             ut1_minus_utc: Second::new(ut1_minus_utc_raw),
             lod: col(line, 80, 86).and_then(parse_f64).map(Millisecond::new),
-            dx: col(line, 98, 106).and_then(parse_f64).map(MilliArcsecond::new),
-            dy: col(line, 117, 125).and_then(parse_f64).map(MilliArcsecond::new),
+            dx: col(line, 98, 106)
+                .and_then(parse_f64)
+                .map(MilliArcsecond::new),
+            dy: col(line, 117, 125)
+                .and_then(parse_f64)
+                .map(MilliArcsecond::new),
         });
     }
 
@@ -1294,9 +1298,9 @@ Dec. 1 - 1962 Jan. 1 0.8s\n\
         let history = "1972 Jan. 1 - 1973 Jan. 1 10s\n1973 Jan. 1 - 11s\n";
         let segments = parse_utc_tai_segments(history).unwrap();
         assert_eq!(segments.len(), 2);
-        assert_eq!(segments[0].base_seconds, 10.0);
+        assert_eq!(segments[0].base.value(), 10.0);
         assert_eq!(segments[0].slope_seconds_per_day, 0.0);
-        assert_eq!(segments[1].base_seconds, 11.0);
+        assert_eq!(segments[1].base.value(), 11.0);
         assert_eq!(segments[1].slope_seconds_per_day, 0.0);
         assert!(segments[1].end_mjd.is_none());
     }

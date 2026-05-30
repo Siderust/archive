@@ -26,11 +26,12 @@ replace the raw file.
 
 IERS Earth Orientation Parameters and ΔT live in the sibling sub-dataset
 `time/eop/` (see `time/eop/manifest.toml`); those raw files are fetched at
-runtime by the `siderust-archive-data` crate rather than committed.
+runtime by `siderust-archive`'s `time`/`fetch` support rather than committed.
 """
 
 [[files]]
-path   = "raw/naif0012.tls"
+path   = "leap-seconds/raw/naif0012.tls"
+format = "naif-lsk"
 sha256 = "678e32bdb5a744117a467cd9601cd6b373f0e9bc9bbde1371d5eee39600a039b"
 bytes  = 5257
 url    = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/lsk/naif0012.tls"

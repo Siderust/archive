@@ -2,7 +2,7 @@
 name    = "archive-validate"
 version = "0.1.0"
 edition = "2021"
-license = "AGPL-3.0-only"
+license = "BSD-3-Clause"
 description = "Structural validator for siderust-archive MANIFEST.toml and family manifests."
 publish = false
 
@@ -13,3 +13,5 @@ path = "src/main.rs"
 [dependencies]
 serde  = { version = "1", features = ["derive"] }
 toml   = "0.8"
+sha2   = "0.11"
+hex    = "0.4"

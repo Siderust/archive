@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: BSD-3-Clause
 // Copyright (C) 2026 Vallés Puig, Ramon
 
 //! TOML manifest model for the Siderust Archive (schema v1).
@@ -87,6 +87,29 @@ impl ArchiveManifest {
     pub fn family(&self, id: &str) -> Option<&Family> {
         self.families.iter().find(|f| f.id == id)
     }
+
+    /// Validate archive-level invariants. Returns list of errors.
+    pub fn validate(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+        if self.archive_name.is_empty() {
+            errors.push("archive_name is empty".into());
+        }
+        if self.archive_version.is_empty() {
+            errors.push("archive_version is empty".into());
+        }
+        if self.families.is_empty() {
+            errors.push("no [[family]] entries".into());
+        }
+        for f in &self.families {
+            if f.id.is_empty() {
+                errors.push("[[family]] entry has empty id".into());
+            }
+            if f.manifest.is_empty() {
+                errors.push(format!("family {}: manifest path is empty", f.id));
+            }
+        }
+        errors
+    }
 }
 
 /// Per-family `manifest.toml`.
@@ -112,21 +135,41 @@ pub struct FamilyManifest {
     pub notes: Option<String>,
     #[serde(default, rename = "files")]
     pub files: Vec<FileEntry>,
+    #[serde(default, rename = "remote_files")]
+    pub remote_files: Vec<RemoteFileEntry>,
     #[serde(default, rename = "references")]
     pub references: Vec<Reference>,
     #[serde(default)]
     pub error_metrics: Option<ErrorMetrics>,
 }
 
-/// A single file shipped with a dataset family.
+/// A single committed file shipped with a dataset family.
 #[derive(Debug, Clone, Deserialize)]
 pub struct FileEntry {
     /// Path relative to the manifest's directory.
     pub path: String,
-    pub format: String,
+    #[serde(default)]
+    pub format: Option<String>,
+    pub sha256: String,
+    pub bytes: u64,
+}
+
+/// A remote-only file that is not committed but can be downloaded at runtime.
+#[derive(Debug, Clone, Deserialize)]
+pub struct RemoteFileEntry {
+    pub path: String,
+    pub url: String,
     pub sha256: String,
     #[serde(default)]
     pub bytes: Option<u64>,
+    #[serde(default)]
+    pub min_size: Option<u64>,
+    #[serde(default)]
+    pub format: Option<String>,
+    #[serde(default)]
+    pub size_hint: Option<String>,
+    #[serde(default)]
+    pub notes: Option<String>,
 }
 
 /// A bibliographic reference for a dataset.
@@ -159,6 +202,52 @@ impl FamilyManifest {
             return Err(ManifestError::UnsupportedSchema(manifest.schema_version));
         }
         Ok(manifest)
+    }
+
+    /// Validate family-level invariants. Returns list of errors.
+    pub fn validate(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+        macro_rules! require_non_empty {
+            ($field:expr, $name:literal) => {
+                if $field.is_empty() {
+                    errors.push(format!("{} is empty", $name));
+                }
+            };
+        }
+        require_non_empty!(self.dataset_id, "dataset_id");
+        require_non_empty!(self.dataset_kind, "dataset_kind");
+        require_non_empty!(self.source, "source");
+        require_non_empty!(self.generator, "generator");
+        require_non_empty!(self.generator_version, "generator_version");
+        require_non_empty!(self.generated_at, "generated_at");
+        require_non_empty!(self.time_scale, "time_scale");
+        require_non_empty!(self.frame, "frame");
+        require_non_empty!(self.center, "center");
+        require_non_empty!(self.units, "units");
+        require_non_empty!(self.dynamical_model, "dynamical_model");
+        if (self.valid_from_jd != 0.0 || self.valid_to_jd != 0.0)
+            && self.valid_to_jd <= self.valid_from_jd
+        {
+            errors.push(format!(
+                "valid_to_jd ({}) must be > valid_from_jd ({})",
+                self.valid_to_jd, self.valid_from_jd
+            ));
+        }
+        for file in &self.files {
+            if file.path.is_empty() {
+                errors.push("[[files]] entry has empty path".into());
+            }
+            if file.sha256.is_empty() {
+                errors.push(format!("file '{}': sha256 is empty", file.path));
+            }
+            if file.bytes == 0 {
+                errors.push(format!("file '{}': bytes is 0", file.path));
+            }
+            if file.path.contains("..") || file.path.starts_with('/') {
+                errors.push(format!("file '{}': path traversal or absolute", file.path));
+            }
+        }
+        errors
     }
 }
 
@@ -198,6 +287,7 @@ dynamical_model   = "Observed/predicted Earth orientation"
 path   = "raw/finals2000A.all"
 format = "iers-finals2000A"
 sha256 = "f18123bd6cb801f308be476de7b17f8193084fecf70baebc1b944ab1fd1e6d19"
+bytes  = 10000
 
 [[references]]
 citation = "IERS Earth Orientation Parameters."
@@ -212,6 +302,7 @@ url      = "https://datacenter.iers.org/data/9/finals2000A.all"
         let time = m.family("time").unwrap();
         assert_eq!(time.manifest, "time/manifest.toml");
         assert_eq!(time.kind, "time-scale");
+        assert!(m.validate().is_empty());
     }
 
     #[test]
@@ -219,9 +310,11 @@ url      = "https://datacenter.iers.org/data/9/finals2000A.all"
         let m = FamilyManifest::parse(FAMILY).unwrap();
         assert_eq!(m.dataset_id, "time-iers-eop");
         assert_eq!(m.files.len(), 1);
-        assert_eq!(m.files[0].format, "iers-finals2000A");
+        assert_eq!(m.files[0].format.as_deref(), Some("iers-finals2000A"));
+        assert_eq!(m.files[0].bytes, 10000);
         assert_eq!(m.references.len(), 1);
         assert!(m.valid_from_jd < m.valid_to_jd);
+        assert!(m.validate().is_empty());
     }
 
     #[test]

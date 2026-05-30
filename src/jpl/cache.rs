@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: BSD-3-Clause
 // Copyright (C) 2026 Vallés Puig, Ramon
 
 //! Filesystem cache for JPL datasets.
@@ -123,7 +123,7 @@ mod tests {
         let tmp = std::env::temp_dir().join("siderust_archive_test_jpl_cache_ok");
         ensure_data_dir(&tmp).unwrap();
         let path = tmp.join("ok_file.bsp");
-        std::fs::write(&path, &vec![0u8; 100]).unwrap();
+        std::fs::write(&path, vec![0u8; 100]).unwrap();
         let rdm = dummy_meta("ok_file.bsp", 50);
         assert!(is_cached(&tmp, &rdm));
         std::fs::remove_file(&path).ok();
@@ -135,7 +135,7 @@ mod tests {
         let tmp = std::env::temp_dir().join("siderust_archive_test_jpl_verify_ok");
         ensure_data_dir(&tmp).unwrap();
         let path = tmp.join("ok.bsp");
-        std::fs::write(&path, &vec![0u8; 200]).unwrap();
+        std::fs::write(&path, vec![0u8; 200]).unwrap();
         let rdm = dummy_meta("ok.bsp", 100);
         verify("test", &path, &rdm).unwrap();
         std::fs::remove_file(&path).ok();

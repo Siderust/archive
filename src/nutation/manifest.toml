@@ -23,16 +23,19 @@ agrees with 2000A to better than ~1 mas.
 
 [[files]]
 path   = "raw/nut00a_ls.csv"
+format = "iers-nutation-csv"
 sha256 = "45e72b3aa9771b355a06d22f31941042f74d0068fcbee322c0669433edba9e64"
 bytes  = 32850
 
 [[files]]
 path   = "raw/nut00a_pl.csv"
+format = "iers-nutation-csv"
 sha256 = "5001277952cf3f6183ec384b5e385b7b4a2e4e0ec9c6b04050a25224cdf0b0c6"
 bytes  = 25929
 
 [[files]]
 path   = "raw/nut00b_ls.csv"
+format = "iers-nutation-csv"
 sha256 = "055fe90c8a5679da76d7d8b503826d04cb0c3ff5b805c70ecd4fa7296a683130"
 bytes  = 4364
 

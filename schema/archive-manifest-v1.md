@@ -10,7 +10,7 @@ JSON is not used anywhere in the archive.
 |-----|------|-------------|
 | `schema_version` | integer | Must equal `1`. |
 | `dataset_id` | string | Stable identifier (`vsop87`, `lagrange-sun-earth-vsop87`, …). |
-| `dataset_kind` | string | One of: `planetary-theory`, `lunar-theory`, `nutation`, `planetary-series`, `lagrange-chebyshev`, `time-scale`, `reference-frame`, `body-constants`, `spice-kernel`. |
+| `dataset_kind` | string | One of: `planetary-theory`, `lunar-theory`, `nutation`, `planetary-series`, `lagrange-chebyshev`, `time-scale`, `reference-frame`, `body-constants`, `spice-kernel`, `planetary-ephemeris`, `atmosphere-model`, `geopotential`, `atmosphere`. |
 | `source` | string | Human-readable upstream citation. |
 | `generator` | string | Identifier of the producer (e.g. `siderust/generate-lagrange-cheby`). |
 | `generator_version` | string | Producer version (typically a Cargo package version). |
@@ -32,7 +32,7 @@ JSON is not used anywhere in the archive.
 
 ## `[[files]]` table
 
-Every file shipped with the dataset must appear in a `[[files]]` table.
+Every committed file shipped with the dataset must appear in a `[[files]]` table.
 
 | key | type | description |
 |-----|------|-------------|
@@ -40,6 +40,21 @@ Every file shipped with the dataset must appear in a `[[files]]` table.
 | `format` | string | Format identifier (e.g. `vsop87-text`, `sck-v1`, `iers-eopc04`). |
 | `sha256` | string | Lowercase hexadecimal SHA-256 of the file. |
 | `bytes` | integer | File size in bytes. |
+
+## `[[remote_files]]` table
+
+Remote-only files that are not committed may appear in `[[remote_files]]`.
+
+| key | type | description |
+|-----|------|-------------|
+| `path` | string | Relative cache path used after download. |
+| `url` | string | Download URL. |
+| `sha256` | string | Lowercase hexadecimal SHA-256 of the remote file. |
+| `bytes` | integer | Expected file size in bytes, if known. |
+| `min_size` | integer | Minimum acceptable byte count for partial sanity checks. |
+| `format` | string | Format identifier (e.g. `spk-bsp`). |
+| `size_hint` | string | Human-readable size hint for UI or logs. |
+| `notes` | string | Maintainer-facing notes about the remote payload. |
 
 ## `[[references]]` table (optional but encouraged)
 
@@ -97,8 +112,9 @@ The validator at `tools/validate/` enforces:
 
 1. `schema_version == 1`.
 2. All required keys present.
-3. Each referenced file exists and matches its declared SHA-256 and byte count.
-4. `valid_to_jd > valid_from_jd`.
-5. Time scale, frame, center, units strings are non-empty.
+3. Each committed `[[files]]` entry exists and matches its declared SHA-256 and byte count.
+4. `[[remote_files]]` metadata is structurally valid.
+5. `valid_to_jd > valid_from_jd`.
+6. Time scale, frame, center, units strings are non-empty.
 
 A failed check produces a non-zero exit code and a human-readable report.

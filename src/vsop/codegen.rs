@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: BSD-3-Clause
 // Copyright (C) 2026 Vallés Puig, Ramon
 
 //! VSOP87 **code‑generator**
@@ -134,7 +134,7 @@ fn generate_one(
 
                 for Term { a, b, c } in terms {
                     code.push_str(&format!(
-                        "    Vsop87 {{ a: ::qtty::AstronomicalUnits::new({}), b: ::qtty::Radians::new({}), c: {} }},\n",
+                        "    Vsop87 {{ a: ::qtty::AstronomicalUnit::new({}), b: ::qtty::Radian::new({}), c: {} }},\n",
                         fmt_f(*a),
                         fmt_f(*b),
                         fmt_f(*c)

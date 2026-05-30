@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: BSD-3-Clause
 // Copyright (C) 2026 Vallés Puig, Ramon
 
 //! Structural validator for the siderust-archive MANIFEST.toml and all
@@ -13,7 +13,7 @@
 //!
 //! # Exit codes
 //!
-//! * 0 — all manifests pass structural validation.
+//! * 0 — all manifests pass validation.
 //! * 1 — one or more manifests failed validation.
 //! * 2 — usage error (bad arguments, manifest file not found).
 
@@ -21,10 +21,23 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 
-// ---------------------------------------------------------------------------
-// Top-level MANIFEST.toml schema
-// ---------------------------------------------------------------------------
+const ALLOWED_KINDS: &[&str] = &[
+    "planetary-theory",
+    "lunar-theory",
+    "nutation",
+    "planetary-series",
+    "lagrange-chebyshev",
+    "time-scale",
+    "reference-frame",
+    "body-constants",
+    "spice-kernel",
+    "planetary-ephemeris",
+    "atmosphere-model",
+    "geopotential",
+    "atmosphere",
+];
 
 #[derive(Debug, Deserialize)]
 struct RootManifest {
@@ -42,24 +55,26 @@ struct FamilyEntry {
     status: String,
 }
 
-// ---------------------------------------------------------------------------
-// Family manifest schema
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Deserialize)]
 struct FamilyManifest {
     schema_version: u32,
     dataset_id: String,
     dataset_kind: String,
-    #[allow(dead_code)]
-    description: Option<String>,
-    valid_from_jd: Option<f64>,
-    valid_to_jd: Option<f64>,
+    source: String,
+    generator: String,
+    generator_version: String,
+    generated_at: String,
+    time_scale: String,
+    frame: String,
+    center: String,
+    units: String,
+    valid_from_jd: f64,
+    valid_to_jd: f64,
+    dynamical_model: String,
     #[serde(default)]
     files: Vec<FileEntry>,
-    #[serde(flatten)]
-    #[allow(dead_code)]
-    _extra: toml::Value,
+    #[serde(default, rename = "remote_files")]
+    remote_files: Vec<RemoteFileEntry>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -68,13 +83,25 @@ struct FileEntry {
     sha256: String,
     bytes: u64,
     #[serde(default)]
-    #[allow(dead_code)]
     format: Option<String>,
 }
 
-// ---------------------------------------------------------------------------
-// Validation logic
-// ---------------------------------------------------------------------------
+#[derive(Debug, Deserialize)]
+struct RemoteFileEntry {
+    path: String,
+    url: String,
+    sha256: String,
+    #[serde(default)]
+    bytes: Option<u64>,
+    #[serde(default)]
+    min_size: Option<u64>,
+    #[serde(default)]
+    format: Option<String>,
+    #[serde(default)]
+    size_hint: Option<String>,
+    #[serde(default)]
+    notes: Option<String>,
+}
 
 #[derive(Default)]
 struct Report {
@@ -86,11 +113,36 @@ impl Report {
     fn error(&mut self, msg: impl Into<String>) {
         self.errors.push(msg.into());
     }
+
     fn warn(&mut self, msg: impl Into<String>) {
         self.warnings.push(msg.into());
     }
+
     fn ok(&self) -> bool {
         self.errors.is_empty()
+    }
+}
+
+fn is_valid_sha256(value: &str) -> bool {
+    value.len() == 64 && value.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+fn validate_non_empty(path: &Path, name: &str, value: &str, report: &mut Report) {
+    if value.is_empty() {
+        report.error(format!("{}: {name} is empty", path.display()));
+    }
+}
+
+fn validate_relative_path(path: &Path, label: &str, rel_path: &str, report: &mut Report) {
+    if rel_path.is_empty() {
+        report.error(format!("{}: {label} has empty path", path.display()));
+    }
+    if rel_path.contains("..") || rel_path.starts_with('/') {
+        report.error(format!(
+            "{}: {label} '{}' path traversal or absolute path",
+            path.display(),
+            rel_path
+        ));
     }
 }
 
@@ -113,6 +165,11 @@ fn validate_root(root: &RootManifest, archive_dir: &Path, report: &mut Report) {
         }
         if entry.kind.is_empty() {
             report.error(format!("family {}: kind is empty", entry.id));
+        } else if !ALLOWED_KINDS.contains(&entry.kind.as_str()) {
+            report.error(format!(
+                "family {}: kind '{}' is not in the allowed set",
+                entry.id, entry.kind
+            ));
         }
         if entry.status.is_empty() {
             report.error(format!("family {}: status is empty", entry.id));
@@ -129,6 +186,7 @@ fn validate_root(root: &RootManifest, archive_dir: &Path, report: &mut Report) {
 }
 
 fn validate_family(path: &Path, expected_id: Option<&str>, report: &mut Report) {
+    let manifest_dir = path.parent().unwrap_or(Path::new("."));
     let text = match std::fs::read_to_string(path) {
         Ok(t) => t,
         Err(e) => {
@@ -151,12 +209,32 @@ fn validate_family(path: &Path, expected_id: Option<&str>, report: &mut Report) 
             manifest.schema_version
         ));
     }
-    if manifest.dataset_id.is_empty() {
-        report.error(format!("{}: dataset_id is empty", path.display()));
+    validate_non_empty(path, "dataset_id", &manifest.dataset_id, report);
+    validate_non_empty(path, "dataset_kind", &manifest.dataset_kind, report);
+    validate_non_empty(path, "source", &manifest.source, report);
+    validate_non_empty(path, "generator", &manifest.generator, report);
+    validate_non_empty(
+        path,
+        "generator_version",
+        &manifest.generator_version,
+        report,
+    );
+    validate_non_empty(path, "generated_at", &manifest.generated_at, report);
+    validate_non_empty(path, "time_scale", &manifest.time_scale, report);
+    validate_non_empty(path, "frame", &manifest.frame, report);
+    validate_non_empty(path, "center", &manifest.center, report);
+    validate_non_empty(path, "units", &manifest.units, report);
+    validate_non_empty(path, "dynamical_model", &manifest.dynamical_model, report);
+
+    if !manifest.dataset_kind.is_empty() && !ALLOWED_KINDS.contains(&manifest.dataset_kind.as_str())
+    {
+        report.error(format!(
+            "{}: dataset_kind '{}' is not in the allowed set",
+            path.display(),
+            manifest.dataset_kind
+        ));
     }
-    if manifest.dataset_kind.is_empty() {
-        report.error(format!("{}: dataset_kind is empty", path.display()));
-    }
+
     if let Some(expected) = expected_id {
         if manifest.dataset_id != expected {
             report.warn(format!(
@@ -167,29 +245,27 @@ fn validate_family(path: &Path, expected_id: Option<&str>, report: &mut Report) 
             ));
         }
     }
-    if let (Some(from), Some(to)) = (manifest.valid_from_jd, manifest.valid_to_jd) {
-        // A zero interval is used as a placeholder in skeleton manifests; skip.
-        if (from != 0.0 || to != 0.0) && to <= from {
-            report.error(format!(
-                "{}: valid_to_jd ({to}) must be greater than valid_from_jd ({from})",
-                path.display()
-            ));
-        }
+
+    if (manifest.valid_from_jd != 0.0 || manifest.valid_to_jd != 0.0)
+        && manifest.valid_to_jd <= manifest.valid_from_jd
+    {
+        report.error(format!(
+            "{}: valid_to_jd ({}) must be greater than valid_from_jd ({})",
+            path.display(),
+            manifest.valid_to_jd,
+            manifest.valid_from_jd
+        ));
     }
+
     for file in &manifest.files {
-        if file.path.is_empty() {
-            report.error(format!(
-                "{}: [[files]] entry has empty path",
-                path.display()
-            ));
-        }
+        validate_relative_path(path, "[[files]] entry", &file.path, report);
         if file.sha256.is_empty() {
             report.error(format!(
                 "{}: file '{}' has empty sha256",
                 path.display(),
                 file.path
             ));
-        } else if file.sha256.len() != 64 || !file.sha256.chars().all(|c| c.is_ascii_hexdigit()) {
+        } else if !is_valid_sha256(&file.sha256) {
             report.error(format!(
                 "{}: file '{}' sha256 is not a valid 64-char hex string",
                 path.display(),
@@ -197,32 +273,113 @@ fn validate_family(path: &Path, expected_id: Option<&str>, report: &mut Report) 
             ));
         }
         if file.bytes == 0 {
-            report.warn(format!(
+            report.error(format!(
                 "{}: file '{}' has bytes = 0",
                 path.display(),
                 file.path
             ));
         }
-        if file.path.contains("..") || file.path.starts_with('/') {
+
+        let file_path = manifest_dir.join(&file.path);
+        if !file_path.exists() {
             report.error(format!(
-                "{}: file '{}' path traversal or absolute path",
+                "{}: file '{}' not found on disk",
+                path.display(),
+                file.path
+            ));
+            continue;
+        }
+
+        let data = match std::fs::read(&file_path) {
+            Ok(data) => data,
+            Err(err) => {
+                report.error(format!(
+                    "{}: cannot read file '{}': {err}",
+                    path.display(),
+                    file.path
+                ));
+                continue;
+            }
+        };
+        if data.len() as u64 != file.bytes {
+            report.error(format!(
+                "{}: file '{}' byte count mismatch: expected {}, got {}",
+                path.display(),
+                file.path,
+                file.bytes,
+                data.len()
+            ));
+        }
+        let hash = hex::encode(Sha256::digest(&data));
+        if hash != file.sha256 {
+            report.error(format!(
+                "{}: file '{}' SHA-256 mismatch:
+  expected {}
+  got      {}",
+                path.display(),
+                file.path,
+                file.sha256,
+                hash
+            ));
+        }
+        let _ = &file.format;
+    }
+
+    for file in &manifest.remote_files {
+        validate_relative_path(path, "[[remote_files]] entry", &file.path, report);
+        if file.url.is_empty() {
+            report.error(format!(
+                "{}: remote file '{}' has empty url",
                 path.display(),
                 file.path
             ));
         }
+        if file.sha256.is_empty() {
+            report.error(format!(
+                "{}: remote file '{}' has empty sha256",
+                path.display(),
+                file.path
+            ));
+        } else if !is_valid_sha256(&file.sha256) {
+            report.error(format!(
+                "{}: remote file '{}' sha256 is not a valid 64-char hex string",
+                path.display(),
+                file.path
+            ));
+        }
+        if matches!(file.bytes, Some(0)) {
+            report.error(format!(
+                "{}: remote file '{}' has bytes = 0",
+                path.display(),
+                file.path
+            ));
+        }
+        if matches!(file.min_size, Some(0)) {
+            report.error(format!(
+                "{}: remote file '{}' has min_size = 0",
+                path.display(),
+                file.path
+            ));
+        }
+        if let (Some(bytes), Some(min_size)) = (file.bytes, file.min_size) {
+            if min_size > bytes {
+                report.error(format!(
+                    "{}: remote file '{}' min_size ({min_size}) exceeds bytes ({bytes})",
+                    path.display(),
+                    file.path
+                ));
+            }
+        }
+        let _ = (&file.format, &file.size_hint, &file.notes);
     }
 }
-
-// ---------------------------------------------------------------------------
-// Entry point
-// ---------------------------------------------------------------------------
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 || args.iter().any(|a| a == "-h" || a == "--help") {
         eprintln!("Usage: archive-validate <path/to/MANIFEST.toml>");
         eprintln!();
-        eprintln!("Structurally validates MANIFEST.toml and all referenced family manifests.");
+        eprintln!("Validates MANIFEST.toml, family manifests, and committed file integrity.");
         eprintln!("Exit 0 = OK, exit 1 = validation errors, exit 2 = usage error.");
         return ExitCode::from(2);
     }
@@ -277,7 +434,6 @@ fn main() -> ExitCode {
     for entry in &root.families {
         let family_path = archive_dir.join(&entry.manifest);
         if !family_path.exists() {
-            // Already reported above.
             continue;
         }
         let mut family_report = Report::default();

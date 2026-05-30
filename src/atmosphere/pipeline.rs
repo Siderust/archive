@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: BSD-3-Clause
 // Copyright (C) 2026 Vallés Puig, Ramon
 
 //! Build-time pipeline for the NRLMSISE-00 atmosphere density table.
@@ -48,12 +48,12 @@ pub(crate) fn run_regen(raw_dir: &Path, out_dir: &Path) -> Result<()> {
     writeln!(out, "#[rustfmt::skip]")?;
     writeln!(
         out,
-        "pub static NRLMSISE_TABLE: &[(::qtty::Kilometers, ::qtty::KilogramsPerCubicMeter)] = &["
+        "pub static NRLMSISE_TABLE: &[(::qtty::Kilometer, ::qtty::KilogramPerCubicMeter)] = &["
     )?;
     for (alt, den) in &entries {
         writeln!(
             out,
-            "    (::qtty::Kilometers::new({alt}), ::qtty::KilogramsPerCubicMeter::new({den})),"
+            "    (::qtty::Kilometer::new({alt}), ::qtty::KilogramPerCubicMeter::new({den})),"
         )?;
     }
     writeln!(out, "];")?;

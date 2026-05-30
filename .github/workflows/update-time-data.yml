@@ -1,7 +1,7 @@
 name: Update Time Data
 
 # Runs every Monday at 05:23 UTC and refreshes the canonical IERS raw files
-# under `time/eop/raw/` (plus their provenance JSON). If any file changed,
+# under `src/time/eop/raw/` (plus their provenance JSON). If any file changed,
 # commits the update to `main` and triggers a patch-version publish to
 # crates.io.
 #
@@ -44,14 +44,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Run updater
-        working-directory: crates/siderust-archive
+        working-directory: .
         run: |
           cargo run --release --features fetch \
             --bin siderust-archive-update-time-data -- \
             --archive-root "${GITHUB_WORKSPACE}"
 
       - name: Validate the refreshed bundle
-        working-directory: crates/siderust-archive
+        working-directory: .
         run: cargo test --all-features
 
       - name: Commit and push if changed
@@ -63,7 +63,7 @@ jobs:
           GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
         run: |
           set -euo pipefail
-          git add time/eop/raw/
+          git add src/time/eop/raw/ src/time/bundled/snapshot.rs
           if git diff --cached --quiet; then
             echo "No IERS data changes; skipping commit."
             echo "data_changed=false" >> "$GITHUB_OUTPUT"
@@ -99,7 +99,7 @@ jobs:
             exit 0
           fi
           echo "Last version tag: $LAST_TAG"
-          NON_DATA=$(git log "$LAST_TAG"..HEAD --oneline -- ':!time/eop/raw/**' || true)
+          NON_DATA=$(git log "$LAST_TAG"..HEAD --oneline -- ':!src/time/eop/raw/**' ':!src/time/bundled/snapshot.rs' || true)
           if [ -n "$NON_DATA" ]; then
             echo "::warning::WIP detected — non-data commits exist since $LAST_TAG. Skipping auto-publish."
             echo "Commits found:"
@@ -113,7 +113,7 @@ jobs:
       - name: Bump patch version
         id: versions
         if: steps.wip.outputs.skip != 'true'
-        working-directory: crates/siderust-archive
+        working-directory: .
         run: |
           set -euo pipefail
           CUR=$(grep -m1 '^version' Cargo.toml | sed -E 's/version *= *"([^"]+)"/\1/')
@@ -135,14 +135,14 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ steps.versions.outputs.version }}"
-          git add crates/siderust-archive/Cargo.toml
+          git add Cargo.toml
           git commit -m "chore(release): siderust-archive v${VERSION}"
           git tag -a "v${VERSION}" -m "Release ${VERSION} (automated data-refresh patch)"
           git push origin HEAD:main --tags
 
       - name: Publish to crates.io
         if: steps.wip.outputs.skip != 'true'
-        working-directory: crates/siderust-archive
+        working-directory: .
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: cargo publish
