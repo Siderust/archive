@@ -47,6 +47,7 @@ lagrange = []
 pluto = []
 
 [dependencies]
+qtty = { version = "0.8", features = ["astro", "density"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"

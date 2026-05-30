@@ -5,10 +5,10 @@
 //!
 //! ## Table layout
 //!
-//! Each entry is `(altitude_km, density_kg_m³)`.  The table covers 50–1000 km
-//! altitude at representative solar activity (F10.7 = 140, Ap = 15).
-//! Accuracy is ±50 % under mean conditions — suitable for teaching and
-//! low-fidelity propagation.
+//! Each entry is `(altitude: Kilometers, density: KilogramsPerCubicMeter)`.
+//! The table covers 50–1000 km altitude at representative solar activity
+//! (F10.7 = 140, Ap = 15).  Accuracy is ±50 % under mean conditions —
+//! suitable for teaching and low-fidelity propagation.
 //!
 //! ## Source
 //!

@@ -13,6 +13,7 @@ pub use snapshot::{
 };
 
 use super::{TimeDataBundle, TimeDataProvenance, UtcTaiSegment};
+use qtty::Second;
 
 /// Build the compiled-in bundled time-data snapshot.
 ///
@@ -26,7 +27,7 @@ pub fn bundled_time_data() -> TimeDataBundle {
             .map(|s| UtcTaiSegment {
                 start_mjd: s.start_mjd,
                 end_mjd: s.end_mjd,
-                base_seconds: s.base_seconds,
+                base: Second::new(s.base_seconds),
                 reference_mjd: s.reference_mjd,
                 slope_seconds_per_day: s.slope_seconds_per_day,
             })

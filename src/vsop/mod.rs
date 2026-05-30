@@ -36,11 +36,18 @@
 
 pub mod refs;
 
+use qtty::{AstronomicalUnits, Radians};
+
 /// One VSOP87 coefficient term: `a · cos(b + c·T)`.
+///
+/// - `a` — amplitude (AU).
+/// - `b` — phase offset (rad).
+/// - `c` — frequency (rad / Julian millennium); kept as `f64` because no
+///   qtty unit exists for rad·millennium⁻¹.
 #[derive(Debug, Clone, Copy)]
 pub struct Vsop87 {
-    pub a: f64,
-    pub b: f64,
+    pub a: AstronomicalUnits,
+    pub b: Radians,
     pub c: f64,
 }
 

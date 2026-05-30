@@ -12,6 +12,7 @@
 //! fallback snapshot is also available via [`bundled_time_data`].
 
 use chrono::{DateTime, NaiveDate, Utc};
+use qtty::{Arcsecond, MilliArcsecond, Millisecond, Second};
 use std::fmt;
 
 pub mod refs;
@@ -25,8 +26,10 @@ pub use refs::{
 pub struct UtcTaiSegment {
     pub start_mjd: i32,
     pub end_mjd: Option<i32>,
-    pub base_seconds: f64,
+    /// TAI−UTC base offset at `reference_mjd`.
+    pub base: Second,
     pub reference_mjd: f64,
+    /// Rate of change of TAI−UTC (s/day).
     pub slope_seconds_per_day: f64,
 }
 
@@ -36,12 +39,12 @@ pub struct EopPoint {
     pub pm_observed: bool,
     pub ut1_observed: bool,
     pub nutation_observed: bool,
-    pub pm_xp_arcsec: Option<f64>,
-    pub pm_yp_arcsec: Option<f64>,
-    pub ut1_minus_utc_seconds: f64,
-    pub lod_milliseconds: Option<f64>,
-    pub dx_milliarcsec: Option<f64>,
-    pub dy_milliarcsec: Option<f64>,
+    pub pm_xp: Option<Arcsecond>,
+    pub pm_yp: Option<Arcsecond>,
+    pub ut1_minus_utc: Second,
+    pub lod: Option<Millisecond>,
+    pub dx: Option<MilliArcsecond>,
+    pub dy: Option<MilliArcsecond>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -699,7 +702,7 @@ pub fn parse_utc_tai_segments(text: &str) -> Result<Vec<UtcTaiSegment>, String> 
         segments.push(UtcTaiSegment {
             start_mjd: mjd_from_date(start_date),
             end_mjd: end_date.map(mjd_from_date),
-            base_seconds,
+            base: Second::new(base_seconds),
             reference_mjd,
             slope_seconds_per_day,
         });
@@ -961,7 +964,7 @@ pub fn parse_eop_finals(text: &str) -> Result<Vec<EopPoint>, String> {
         if !matches!(ut1_flag, 'I' | 'P') {
             continue;
         }
-        let Some(ut1_minus_utc_seconds) = col(line, 59, 68).and_then(parse_f64) else {
+        let Some(ut1_minus_utc_raw) = col(line, 59, 68).and_then(parse_f64) else {
             continue;
         };
 
@@ -972,12 +975,12 @@ pub fn parse_eop_finals(text: &str) -> Result<Vec<EopPoint>, String> {
             pm_observed: matches!(pm_flag, Some('I')),
             ut1_observed: ut1_flag == 'I',
             nutation_observed: matches!(nutation_flag, Some('I')),
-            pm_xp_arcsec: col(line, 19, 27).and_then(parse_f64),
-            pm_yp_arcsec: col(line, 38, 46).and_then(parse_f64),
-            ut1_minus_utc_seconds,
-            lod_milliseconds: col(line, 80, 86).and_then(parse_f64),
-            dx_milliarcsec: col(line, 98, 106).and_then(parse_f64),
-            dy_milliarcsec: col(line, 117, 125).and_then(parse_f64),
+            pm_xp: col(line, 19, 27).and_then(parse_f64).map(Arcsecond::new),
+            pm_yp: col(line, 38, 46).and_then(parse_f64).map(Arcsecond::new),
+            ut1_minus_utc: Second::new(ut1_minus_utc_raw),
+            lod: col(line, 80, 86).and_then(parse_f64).map(Millisecond::new),
+            dx: col(line, 98, 106).and_then(parse_f64).map(MilliArcsecond::new),
+            dy: col(line, 117, 125).and_then(parse_f64).map(MilliArcsecond::new),
         });
     }
 
@@ -1087,7 +1090,7 @@ mod tests {
             segments[0].slope_seconds_per_day
         );
         assert_eq!(segments[2].end_mjd, None);
-        assert_eq!(segments[2].base_seconds, 10.0);
+        assert_eq!(segments[2].base.value(), 10.0);
     }
 
     #[test]
@@ -1173,13 +1176,13 @@ mod tests {
         assert_eq!(points.len(), 2);
         assert_eq!(points[0].mjd, 60_000);
         assert!(points[0].ut1_observed);
-        assert_eq!(points[0].pm_xp_arcsec, Some(0.123_456));
-        assert_eq!(points[0].lod_milliseconds, Some(1.2345));
-        assert_eq!(points[0].dx_milliarcsec, Some(0.321));
+        assert_eq!(points[0].pm_xp.map(|v| v.value()), Some(0.123_456));
+        assert_eq!(points[0].lod.map(|v| v.value()), Some(1.2345));
+        assert_eq!(points[0].dx.map(|v| v.value()), Some(0.321));
         assert_eq!(points[1].mjd, 60_001);
         assert!(!points[1].ut1_observed);
-        assert_eq!(points[1].pm_xp_arcsec, None);
-        assert_eq!(points[1].dx_milliarcsec, None);
+        assert_eq!(points[1].pm_xp, None);
+        assert_eq!(points[1].dx, None);
     }
 
     #[test]

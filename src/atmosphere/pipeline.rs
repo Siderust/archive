@@ -41,14 +41,20 @@ pub(crate) fn run_regen(raw_dir: &Path, out_dir: &Path) -> Result<()> {
     writeln!(out)?;
     writeln!(
         out,
-        "/// NRLMSISE-00 density profile: (altitude_km, density_kg_m³)."
+        "/// NRLMSISE-00 density profile: `(altitude, density)` pairs."
     )?;
     writeln!(out, "///")?;
     writeln!(out, "/// F10.7 = 140, Ap = 15 (mean solar activity).")?;
     writeln!(out, "#[rustfmt::skip]")?;
-    writeln!(out, "pub static NRLMSISE_TABLE: &[(f64, f64)] = &[")?;
+    writeln!(
+        out,
+        "pub static NRLMSISE_TABLE: &[(::qtty::Kilometers, ::qtty::KilogramsPerCubicMeter)] = &["
+    )?;
     for (alt, den) in &entries {
-        writeln!(out, "    ({alt}, {den}),")?;
+        writeln!(
+            out,
+            "    (::qtty::Kilometers::new({alt}), ::qtty::KilogramsPerCubicMeter::new({den})),"
+        )?;
     }
     writeln!(out, "];")?;
 
