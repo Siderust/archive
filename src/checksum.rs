@@ -13,7 +13,6 @@
 ///     "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
 /// );
 /// ```
-#[cfg(feature = "fetch")]
 pub fn sha256_hex(bytes: &[u8]) -> String {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
@@ -51,7 +50,6 @@ impl std::fmt::Display for ChecksumMismatch {
 impl std::error::Error for ChecksumMismatch {}
 
 /// Verify that `bytes` hash to the `expected` lowercase-hex SHA-256 digest.
-#[cfg(feature = "fetch")]
 pub fn verify_sha256(label: &str, bytes: &[u8], expected: &str) -> Result<(), ChecksumMismatch> {
     let actual = sha256_hex(bytes);
     if actual != expected {
@@ -64,7 +62,7 @@ pub fn verify_sha256(label: &str, bytes: &[u8], expected: &str) -> Result<(), Ch
     Ok(())
 }
 
-#[cfg(all(test, feature = "fetch"))]
+#[cfg(test)]
 mod tests {
     use super::*;
 

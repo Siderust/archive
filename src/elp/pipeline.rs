@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
 
 use std::{
@@ -248,42 +248,24 @@ fn generate_rust(
     Ok(out)
 }
 
-/// ----------------------  DATASET HANDLING  ----------------------
-/// Ensure the 36 `ELPn` files are present under `dir`.
-///
-fn ensure_dataset(dir: &Path) -> Result<()> {
-    use reqwest::blocking::Client;
-
-    fs::create_dir_all(dir)?;
-
-    let base = "https://cdsarc.cds.unistra.fr/ftp/VI/79/";
-    let client = Client::builder()
-        .user_agent("ELP build script (rust)")
-        .build()?;
-
-    for n in 1..=36 {
-        let name = format!("ELP{n}");
-        let path = dir.join(&name);
-        if path.exists() {
-            continue;
-        }
-        let url = format!("{base}/{name}");
-        println!("cargo:info=Downloading {url}");
-        let bytes = client
-            .get(&url)
-            .send()
-            .with_context(|| format!("GET {url}"))?
-            .error_for_status()?
-            .bytes()?;
-        fs::write(&path, &bytes).with_context(|| format!("write {path:?}"))?;
-    }
-    Ok(())
-}
-
 /// ---------------------------  ENTRYPOINT  -----------------------
 #[allow(dead_code)]
 pub(crate) fn run(data_dir: &Path) -> Result<()> {
-    ensure_dataset(data_dir)?;
+    let out_dir = PathBuf::from(env::var("OUT_DIR")?);
+
+    if !data_dir.exists() || is_empty_dir(data_dir)? {
+        println!(
+            "cargo:warning=ELP2000: raw data absent at {}; writing empty stub. \
+             Place ELP1..ELP36 files in src/elp/raw/ to enable table generation.",
+            data_dir.display()
+        );
+        fs::create_dir_all(&out_dir)?;
+        fs::write(
+            out_dir.join("elp_data.rs"),
+            "// No ELP2000 data: raw files absent from src/elp/raw/.\n",
+        )?;
+        return Ok(());
+    }
 
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed={}", data_dir.display());
@@ -291,7 +273,6 @@ pub(crate) fn run(data_dir: &Path) -> Result<()> {
     let parsed = parse_all_elps(data_dir)?;
     let code = generate_rust(&parsed, None)?;
 
-    let out_dir = PathBuf::from(env::var("OUT_DIR")?);
     fs::write(out_dir.join("elp_data.rs"), code.as_bytes())?;
     println!("cargo:info=elp_data.rs generated");
 
@@ -305,8 +286,22 @@ pub(crate) fn run(data_dir: &Path) -> Result<()> {
 /// the `SIDERUST_ELP2000_SHA256` environment variable when set, and
 /// embeds the SHA-256 + retrieval timestamp as a comment header in the
 /// emitted `elp_data.rs`.
+///
+/// No network access is performed. Place ELP1..ELP36 files in
+/// `src/elp/raw/` before running.
 pub(crate) fn run_regen(data_dir: &Path, gen_dir: &Path) -> Result<()> {
-    ensure_dataset(data_dir)?;
+    if !data_dir.exists() || is_empty_dir(data_dir)? {
+        println!(
+            "cargo:warning=ELP2000: raw data absent at {}; writing empty stub.",
+            data_dir.display()
+        );
+        fs::create_dir_all(gen_dir)?;
+        fs::write(
+            gen_dir.join("elp_data.rs"),
+            "// No ELP2000 data: raw files absent from src/elp/raw/.\n",
+        )?;
+        return Ok(());
+    }
 
     let (sha, bytes) = dataset_sha256(data_dir)?;
     eprintln!("ELP2000: dataset SHA-256 = {sha} ({bytes} bytes across all files)");
@@ -324,6 +319,10 @@ pub(crate) fn run_regen(data_dir: &Path, gen_dir: &Path) -> Result<()> {
     fs::create_dir_all(gen_dir)?;
     fs::write(gen_dir.join("elp_data.rs"), code.as_bytes())?;
     Ok(())
+}
+
+fn is_empty_dir(dir: &Path) -> Result<bool> {
+    Ok(fs::read_dir(dir)?.next().is_none())
 }
 
 fn iso8601_now() -> String {

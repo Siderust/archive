@@ -47,16 +47,14 @@ fn main() {
     {
         let vsop_raw = archive_root.join("src").join("vsop").join("raw");
         println!("cargo:rerun-if-changed={}", vsop_raw.display());
-        vsop_pipeline::run_regen(&vsop_raw, &out_dir)
-            .expect("VSOP87 table generation failed");
+        vsop_pipeline::run_regen(&vsop_raw, &out_dir).expect("VSOP87 table generation failed");
     }
 
     #[cfg(feature = "elp")]
     {
         let elp_raw = archive_root.join("src").join("elp").join("raw");
         println!("cargo:rerun-if-changed={}", elp_raw.display());
-        elp_pipeline::run_regen(&elp_raw, &out_dir)
-            .expect("ELP2000 table generation failed");
+        elp_pipeline::run_regen(&elp_raw, &out_dir).expect("ELP2000 table generation failed");
     }
 
     #[cfg(feature = "atmosphere")]
@@ -76,8 +74,7 @@ fn main() {
     #[cfg(feature = "pluto")]
     {
         let raw = archive_root.join("src").join("pluto").join("raw");
-        pluto_pipeline::run_regen(&raw, &out_dir)
-            .expect("Pluto series table generation failed");
+        pluto_pipeline::run_regen(&raw, &out_dir).expect("Pluto series table generation failed");
     }
 
     #[cfg(feature = "nutation")]

@@ -13,54 +13,66 @@ archive_version = "0.1.0"
 
 [[family]]
 id        = "vsop87"
-manifest  = "vsop87/manifest.toml"
+manifest  = "src/vsop/manifest.toml"
 kind      = "planetary-theory"
 status    = "pending-migration"
 
 [[family]]
 id        = "nutation"
-manifest  = "nutation/manifest.toml"
+manifest  = "src/nutation/manifest.toml"
 kind      = "nutation"
 status    = "pending-migration"
 
 [[family]]
 id        = "elp2000"
-manifest  = "elp2000/manifest.toml"
+manifest  = "src/elp/manifest.toml"
 kind      = "lunar-theory"
 status    = "pending-migration"
 
 [[family]]
 id        = "pluto"
-manifest  = "pluto/manifest.toml"
+manifest  = "src/pluto/manifest.toml"
 kind      = "planetary-series"
 status    = "pending-migration"
 
 [[family]]
+id        = "atmosphere"
+manifest  = "src/atmosphere/manifest.toml"
+kind      = "atmosphere-model"
+status    = "pending-migration"
+
+[[family]]
+id        = "gravity"
+manifest  = "src/gravity/manifest.toml"
+kind      = "geopotential"
+status    = "pending-migration"
+
+[[family]]
 id        = "time"
-manifest  = "time/manifest.toml"
+manifest  = "src/time/manifest.toml"
 kind      = "time-scale"
 status    = "pending-migration"
 
 [[family]]
 id        = "frames"
-manifest  = "frames/manifest.toml"
+manifest  = "src/frames/manifest.toml"
 kind      = "reference-frame"
 status    = "skeleton"
 
 [[family]]
 id        = "constants"
-manifest  = "constants/manifest.toml"
+manifest  = "src/constants/manifest.toml"
 kind      = "body-constants"
 status    = "skeleton"
 
 [[family]]
 id        = "jpl"
-manifest  = "jpl/manifest.toml"
+manifest  = "src/jpl/manifest.toml"
 kind      = "planetary-ephemeris"
 status    = "active"
 
 [[family]]
 id        = "lagrange-sun-earth-vsop87"
-manifest  = "lagrange/vsop87/manifest.toml"
+manifest  = "src/lagrange/vsop87/manifest.toml"
 kind      = "lagrange-chebyshev"
 status    = "partial"

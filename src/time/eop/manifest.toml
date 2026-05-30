@@ -30,7 +30,7 @@ The raw files are obtained at runtime, not committed:
   * deltat.preds     — USNO predicted ΔT.
   * UTC-TAI.history  — IERS leap-second / pre-1972 rubber-second history.
 After a successful fetch, `siderust-archive-data` writes a
-`time_data.provenance.json` next to the cached files recording the fetch
+`time_data.provenance.toml` next to the cached files recording the fetch
 timestamp and per-file SHA-256. Populate `[[files]]` below from that record if
 a snapshot is committed.
 """

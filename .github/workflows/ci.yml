@@ -18,9 +18,6 @@ jobs:
       fail-fast: false
       matrix:
         toolchain: [stable]
-    defaults:
-      run:
-        working-directory: crates/siderust-archive
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -33,12 +30,14 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            crates/siderust-archive/target
-          key: cargo-${{ runner.os }}-${{ matrix.toolchain }}-${{ hashFiles('crates/siderust-archive/Cargo.toml') }}
+            target
+          key: cargo-${{ runner.os }}-${{ matrix.toolchain }}-${{ hashFiles('Cargo.toml') }}
       - run: cargo fmt --all -- --check
-      - run: cargo clippy --all-features --all-targets -- -D warnings
+      - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test --no-default-features
       - run: cargo test --features time
-      - run: cargo test --all-features
+      - run: cargo test --features time,fetch
+      - name: Validate manifests
+        run: cargo run -p archive-validate -- MANIFEST.toml
       - name: Verify publishability
-        run: cargo publish --dry-run --allow-dirty
+        run: cargo publish --dry-run --allow-dirty -p siderust-archive

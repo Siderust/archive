@@ -1,0 +1,15 @@
+[package]
+name    = "archive-validate"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+description = "Structural validator for siderust-archive MANIFEST.toml and family manifests."
+publish = false
+
+[[bin]]
+name = "archive-validate"
+path = "src/main.rs"
+
+[dependencies]
+serde  = { version = "1", features = ["derive"] }
+toml   = "0.8"

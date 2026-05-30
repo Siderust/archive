@@ -12,8 +12,8 @@
 //!    cache directory.
 //! 2. Verifies that the bundle parses correctly and computes SHA-256 hashes.
 //! 3. Atomically swaps the downloaded raw files into
-//!    `<archive>/time/eop/raw/`.
-//! 4. Writes a `time_data.provenance.json` recording fetch timestamp and per-
+//!    `<archive>/src/time/eop/raw/`.
+//! 4. Writes a `time_data.provenance.toml` recording fetch timestamp and per-
 //!    file SHA-256.
 //! 5. Regenerates the compiled bundled snapshot at
 //!    `src/time/bundled/snapshot.rs`.
@@ -48,7 +48,7 @@ const RAW_FILES: [(&str, &str); 4] = [
     ("finals2000A.all", "eop_finals_sha256"),
 ];
 
-const PROVENANCE_FILE: &str = "time_data.provenance.json";
+const PROVENANCE_FILE: &str = "time_data.provenance.toml";
 
 struct CliArgs {
     archive_root: PathBuf,
@@ -138,7 +138,7 @@ fn run(args: &CliArgs) -> Result<String, String> {
         ));
     }
 
-    let eop_dir = archive_root.join("time").join("eop");
+    let eop_dir = archive_root.join("src").join("time").join("eop");
     let raw_dir = eop_dir.join("raw");
     fs::create_dir_all(&raw_dir)
         .map_err(|e| format!("cannot create raw dir {:?}: {e}", raw_dir))?;
@@ -287,7 +287,10 @@ fn write_bundled_snapshot(
     let delta_points = bundle.modern_delta_t_points();
     let delta_start = delta_points.first().map(|(m, _)| *m).unwrap_or(0.0);
     let delta_obs_end = bundle.modern_delta_t_observed_end_mjd();
-    let delta_end = delta_points.last().map(|(m, _)| *m).unwrap_or(delta_obs_end);
+    let delta_end = delta_points
+        .last()
+        .map(|(m, _)| *m)
+        .unwrap_or(delta_obs_end);
     out.push_str(&format!(
         "pub const MODERN_DELTA_T_START_MJD: f64 = {delta_start:.3};\n"
     ));
@@ -312,7 +315,10 @@ fn write_bundled_snapshot(
         out.push_str(&format!("        start_mjd: {},\n", seg.start_mjd));
         out.push_str(&format!("        end_mjd: {end},\n"));
         out.push_str(&format!("        base_seconds: {:.7},\n", seg.base_seconds));
-        out.push_str(&format!("        reference_mjd: {:.1},\n", seg.reference_mjd));
+        out.push_str(&format!(
+            "        reference_mjd: {:.1},\n",
+            seg.reference_mjd
+        ));
         out.push_str(&format!(
             "        slope_seconds_per_day: {:.7},\n",
             seg.slope_seconds_per_day

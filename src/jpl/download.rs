@@ -23,9 +23,9 @@ pub(super) fn download(
         std::fs::create_dir_all(parent)?;
     }
 
-    let response = ureq::get(meta.url).call().map_err(|e| {
-        ArchiveError::Download(format!("HTTP request failed for {name}: {e}"))
-    })?;
+    let response = ureq::get(meta.url)
+        .call()
+        .map_err(|e| ArchiveError::Download(format!("HTTP request failed for {name}: {e}")))?;
 
     let total: u64 = response
         .headers()

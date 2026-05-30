@@ -15,6 +15,7 @@ categories = ["science", "aerospace", "parser-implementations"]
 # The archive is its own repository; this crate must stand alone and not be
 # absorbed into a parent repository's cargo workspace.
 [workspace]
+members = [".", "tools/validate"]
 
 [features]
 default = []
@@ -29,7 +30,7 @@ bundled-time = []
 # JPL planetary ephemeris download/cache (DE440/DE441).
 jpl = []
 # Runtime network download for IERS and JPL datasets. Implies `time` and `jpl`.
-fetch = ["time", "jpl", "dep:serde_json", "dep:sha2", "dep:ureq"]
+fetch = ["time", "jpl", "dep:ureq"]
 # IAU 2000A/2000B nutation coefficient tables (MHB2000).
 nutation = []
 # EGM2008 geopotential coefficients (low-degree subset).
@@ -49,14 +50,12 @@ pluto = []
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
-serde_json = { version = "1", optional = true }
-sha2 = { version = "0.11", optional = true }
+sha2 = "0.11"
 ureq = { version = "3", optional = true }
 
 [build-dependencies]
 anyhow = "1"
 regex = "1"
-reqwest = { version = "0.13.2", default-features = false, features = ["blocking", "rustls"] }
 sha2 = "0.11"
 walkdir = "2"
 

@@ -226,7 +226,6 @@ impl From<std::io::Error> for TimeDataError {
 #[cfg(feature = "fetch")]
 mod fetch_support {
     use super::*;
-    use serde_json::Value;
     use sha2::{Digest, Sha256};
     use std::fs;
     use std::io::Read;
@@ -235,12 +234,21 @@ mod fetch_support {
 
     const DEFAULT_SUBDIR: &str = ".tempoch/data";
     const BUNDLE_DIR_NAME: &str = "bundle";
-    const PROVENANCE_FILE: &str = "time_data.provenance.json";
+    const PROVENANCE_FILE: &str = "time_data.provenance.toml";
     const UTC_TAI_HISTORY_FILE: &str = "UTC-TAI.history";
     const DELTA_T_OBSERVED_FILE: &str = "deltat.data";
     const DELTA_T_PREDICTIONS_FILE: &str = "deltat.preds";
     const EOP_FINALS_FILE: &str = "finals2000A.all";
     const FETCH_TIMEOUT_SECS: u64 = 60;
+
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct ProvenanceToml {
+        fetched_utc: String,
+        utc_tai_sha256: String,
+        delta_t_observed_sha256: String,
+        delta_t_predictions_sha256: String,
+        eop_finals_sha256: String,
+    }
 
     pub struct TimeDataManager {
         data_dir: PathBuf,
@@ -295,7 +303,7 @@ mod fetch_support {
             );
             fs::write(
                 staging_dir.join(PROVENANCE_FILE),
-                render_provenance_json(&provenance),
+                render_provenance_toml(&provenance),
             )?;
 
             load_cached_bundle(staging_dir.clone())?;
@@ -362,7 +370,7 @@ mod fetch_support {
         let delta_t_predictions = read_text(bundle_dir.join(DELTA_T_PREDICTIONS_FILE))?;
         let eop_finals = read_text(bundle_dir.join(EOP_FINALS_FILE))?;
         let provenance_text = read_text(bundle_dir.join(PROVENANCE_FILE))?;
-        let provenance = parse_provenance_json(&provenance_text)?;
+        let provenance = parse_provenance_toml(&provenance_text)?;
 
         verify_sha256(
             "UTC-TAI history",
@@ -450,35 +458,26 @@ mod fetch_support {
         })
     }
 
-    fn render_provenance_json(provenance: &TimeDataProvenance) -> String {
-        let value = serde_json::json!({
-            "fetched_utc": provenance.fetched_utc(),
-            "utc_tai_sha256": provenance.utc_tai_sha256(),
-            "delta_t_observed_sha256": provenance.delta_t_observed_sha256(),
-            "delta_t_predictions_sha256": provenance.delta_t_predictions_sha256(),
-            "eop_finals_sha256": provenance.eop_finals_sha256(),
-        });
-        let mut rendered = serde_json::to_string_pretty(&value)
-            .expect("serializing time-data provenance should work");
-        rendered.push('\n');
-        rendered
+    fn render_provenance_toml(provenance: &TimeDataProvenance) -> String {
+        let record = ProvenanceToml {
+            fetched_utc: provenance.fetched_utc().to_string(),
+            utc_tai_sha256: provenance.utc_tai_sha256().to_string(),
+            delta_t_observed_sha256: provenance.delta_t_observed_sha256().to_string(),
+            delta_t_predictions_sha256: provenance.delta_t_predictions_sha256().to_string(),
+            eop_finals_sha256: provenance.eop_finals_sha256().to_string(),
+        };
+        toml::to_string_pretty(&record).expect("serializing time-data provenance should work")
     }
 
-    fn parse_provenance_json(text: &str) -> Result<TimeDataProvenance, TimeDataError> {
-        let json: Value =
-            serde_json::from_str(text).map_err(|err| TimeDataError::Integrity(err.to_string()))?;
-        let string_field = |name: &str| -> Result<String, TimeDataError> {
-            json.get(name)
-                .and_then(Value::as_str)
-                .map(str::to_owned)
-                .ok_or_else(|| TimeDataError::Integrity(format!("missing provenance field {name}")))
-        };
+    fn parse_provenance_toml(text: &str) -> Result<TimeDataProvenance, TimeDataError> {
+        let record: ProvenanceToml =
+            toml::from_str(text).map_err(|err| TimeDataError::Integrity(err.to_string()))?;
         Ok(TimeDataProvenance::new(
-            string_field("fetched_utc")?,
-            string_field("utc_tai_sha256")?,
-            string_field("delta_t_observed_sha256")?,
-            string_field("delta_t_predictions_sha256")?,
-            string_field("eop_finals_sha256")?,
+            record.fetched_utc,
+            record.utc_tai_sha256,
+            record.delta_t_observed_sha256,
+            record.delta_t_predictions_sha256,
+            record.eop_finals_sha256,
         ))
     }
 

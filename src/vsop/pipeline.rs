@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
 
 //! **VSOP87 build‑pipeline entry point**
@@ -45,14 +45,16 @@
 //! generated `.rs` files are then **included** by normal code via `include!` or
 //! by the compiler picking them up as modules.
 
-use std::{collections::BTreeMap, env, path::Path, path::PathBuf};
+use std::{collections::BTreeMap, env, fs, path::Path, path::PathBuf};
 
 use anyhow::Context;
 
-#[path = "codegen.rs"] mod codegen;
-#[path = "collect.rs"] mod collect;
-#[path = "fetch.rs"] mod fetch;
-#[path = "io.rs"] mod io;
+#[path = "codegen.rs"]
+mod codegen;
+#[path = "collect.rs"]
+mod collect;
+#[path = "io.rs"]
+mod io;
 
 /// Compute a stable SHA-256 fingerprint of the VSOP87 input dataset
 /// directory by hashing every `VSOP87X.xxx` file in sorted name order.
@@ -144,12 +146,15 @@ type VersionMap = BTreeMap<char, PlanetMap>;
 /// Runs the complete VSOP87 build pipeline.
 ///
 /// Steps:
-/// 1. Ensures the dataset exists in `data_dir` (downloads it if missing).
-/// 2. Instructs Cargo to rerun the build script if anything under `data_dir` changes.
-/// 3. Locates `OUT_DIR` (the directory where build artifacts must be emitted).
-/// 4. Parses all VSOP87 data files and builds the in-memory `VersionMap`.
-/// 5. Generates Rust source code from the parsed data.
-/// 6. Writes the generated code to files in `OUT_DIR`.
+/// 1. Instructs Cargo to rerun the build script if anything under `data_dir` changes.
+/// 2. Locates `OUT_DIR` (the directory where build artifacts must be emitted).
+/// 3. Parses all VSOP87 data files and builds the in-memory `VersionMap`.
+/// 4. Generates Rust source code from the parsed data.
+/// 5. Writes the generated code to files in `OUT_DIR`.
+///
+/// If the raw data directory is absent or empty, writes empty stub files and
+/// emits a `cargo:warning`. Download the raw VSOP87 files into `src/vsop/raw/`
+/// to regenerate the coefficient tables.
 ///
 /// # Errors
 /// Returns any I/O or parsing error wrapped in `anyhow::Error`.
@@ -159,8 +164,15 @@ pub(crate) fn run(data_dir: &Path) -> anyhow::Result<()> {
         env::var("OUT_DIR").context("OUT_DIR not set (missing Cargo build context)")?,
     );
 
-    // Pipeline: fetch → parse → generate code → write files.
-    fetch::ensure_dataset(data_dir)?;
+    if !data_dir.exists() || is_empty_dir(data_dir)? {
+        println!(
+            "cargo:warning=VSOP87: raw data absent at {}; writing empty stubs. \
+             Place VSOP87 data files in src/vsop/raw/ to enable table generation.",
+            data_dir.display()
+        );
+        return write_empty_stubs(&out_dir);
+    }
+
     let versions = collect::collect_terms(data_dir)?;
     let modules = codegen::generate_modules(&versions)?;
     io::write_modules(&modules, &out_dir)?;
@@ -170,13 +182,23 @@ pub(crate) fn run(data_dir: &Path) -> anyhow::Result<()> {
 
 /// Like [`run`] but writes generated files to `gen_dir` instead of `OUT_DIR`.
 ///
-/// Used by `build.rs` when `SIDERUST_REGEN=1` to overwrite the committed
-/// tables in `src/archive/`. Verifies the input dataset SHA-256 against
-/// the `SIDERUST_VSOP87_SHA256` environment variable when set, and embeds
-/// the SHA-256 + retrieval timestamp as a comment header in every emitted
-/// `vsop87X.rs` file.
+/// Used by `build.rs` to emit Rust coefficient tables into `OUT_DIR`.
+/// Verifies the input dataset SHA-256 against the `SIDERUST_VSOP87_SHA256`
+/// environment variable when set, and embeds the SHA-256 + retrieval
+/// timestamp as a comment header in every emitted `vsop87X.rs` file.
+///
+/// If the raw data directory is absent or empty, writes empty stub files and
+/// emits a `cargo:warning`. No network access is performed; download the raw
+/// VSOP87 files into `src/vsop/raw/` first.
 pub(crate) fn run_regen(data_dir: &Path, gen_dir: &Path) -> anyhow::Result<()> {
-    fetch::ensure_dataset(data_dir)?;
+    if !data_dir.exists() || is_empty_dir(data_dir)? {
+        println!(
+            "cargo:warning=VSOP87: raw data absent at {}; writing empty stubs. \
+             Place VSOP87 data files in src/vsop/raw/ to enable table generation.",
+            data_dir.display()
+        );
+        return write_empty_stubs(gen_dir);
+    }
 
     let (sha, bytes) = dataset_sha256(data_dir)?;
     eprintln!("VSOP87: dataset SHA-256 = {sha} ({bytes} bytes across all files)");
@@ -192,6 +214,28 @@ pub(crate) fn run_regen(data_dir: &Path, gen_dir: &Path) -> anyhow::Result<()> {
     let versions = collect::collect_terms(data_dir)?;
     let modules = codegen::generate_modules_with_provenance(&versions, &prov)?;
     io::write_modules(&modules, gen_dir)?;
+    Ok(())
+}
+
+/// Returns `true` when `dir` contains no files.
+fn is_empty_dir(dir: &Path) -> anyhow::Result<bool> {
+    Ok(fs::read_dir(dir)
+        .with_context(|| format!("read-dir {dir:?}"))?
+        .next()
+        .is_none())
+}
+
+/// Write empty stub files for all modules that `include!` expects to find in
+/// `OUT_DIR`. An empty file is valid Rust and produces an empty module body.
+fn write_empty_stubs(gen_dir: &Path) -> anyhow::Result<()> {
+    fs::create_dir_all(gen_dir).with_context(|| format!("create-dir {gen_dir:?}"))?;
+    for name in ["vsop87a.rs", "vsop87e.rs"] {
+        fs::write(
+            gen_dir.join(name),
+            "// No VSOP87 data: raw coefficient files absent from src/vsop/raw/.\n",
+        )
+        .with_context(|| format!("write stub {name}"))?;
+    }
     Ok(())
 }
 
