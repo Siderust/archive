@@ -58,4 +58,33 @@ citation = "IERS UTC-TAI leap-second history."
 url      = "https://hpiers.obspm.fr/eoppc/bul/bulc/UTC-TAI.history"
 
 # BEGIN GENERATED FILE ENTRIES — update-time-data
+[[files]]
+path   = "raw/UTC-TAI.history"
+format = "iers-utc-tai-history"
+sha256 = "54e702abdc388ae3bf8cfc5f126900a5277829ad90e80f6773df6e714a133642"
+bytes  = 2235
+
+[[files]]
+path   = "raw/deltat.data"
+format = "usno-delta-t-observed"
+sha256 = "9f88e53593495a09219fe956eeadea0fa9f8e3e02c310b2aa2b70852383cdf6f"
+bytes  = 13419
+
+[[files]]
+path   = "raw/deltat.preds"
+format = "usno-delta-t-predictions"
+sha256 = "5d864fddd30b2c64d2a86d3debbb25604eb5de44370c96bccf2abd5463f3db08"
+bytes  = 1483
+
+[[files]]
+path   = "raw/finals2000A.all"
+format = "iers-finals2000a"
+sha256 = "4c618ccf3325a910cf7117e5c48560c9acb3aa6ef85dcc9b792e71c13f50a9fc"
+bytes  = 3746464
+
+[[files]]
+path   = "raw/time_data.provenance.toml"
+format = "siderust-time-provenance-toml"
+sha256 = "95c368090da9fde1ea18f215bc89f4d61a49be4a2329fb682a8a62b8df123af1"
+bytes  = 396
 # END GENERATED FILE ENTRIES — update-time-data

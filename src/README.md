@@ -103,7 +103,7 @@ The IERS UTC-TAI, Delta T, and EOP bundle has a dedicated updater:
 
 ```bash
 cd archive
-cargo run --bin siderust-archive-update-time-data --features fetch
+cargo run --features fetch --bin siderust-archive-update-time-data -- --archive-root .
 ```
 
 The updater downloads the upstream bundle into a staging directory, verifies

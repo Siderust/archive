@@ -29,12 +29,12 @@ Use the updater when refreshing the committed repo snapshot:
 
 ```bash
 cd archive
-cargo run --bin siderust-archive-update-time-data --features fetch
+cargo run --features fetch --bin siderust-archive-update-time-data -- --archive-root .
 ```
 
-The updater writes `time_data.provenance.toml` with per-file SHA-256 values.
-If the manifest starts listing committed raw files, populate `[[files]]`
-entries from that TOML provenance record and run the archive validator.
+The updater writes `time_data.provenance.toml` with per-file SHA-256 values
+and regenerates the `[[files]]` block in `manifest.toml`. Run the archive
+validator after refreshing the snapshot.
 
 ## Use
 

@@ -31,7 +31,7 @@
 //! The default `--archive-root` is `CARGO_MANIFEST_DIR`, which makes the tool
 //! work out of the box when run from inside the archive workspace:
 //! ```text
-//! cargo run --bin update-time-data --features fetch
+//! cargo run --features fetch --bin siderust-archive-update-time-data -- --archive-root .
 //! ```
 
 use std::env;
@@ -351,7 +351,7 @@ fn write_bundled_snapshot(
     out.push_str("}\n\n");
 
     out.push_str(&format!(
-        "pub const PRE_1961_TAI_MINUS_UTC_APPROX: f64 = {PRE_1961_TAI_MINUS_UTC_APPROX};\n"
+        "pub const PRE_1961_TAI_MINUS_UTC_APPROX: f64 = {PRE_1961_TAI_MINUS_UTC_APPROX:.1};\n"
     ));
     out.push_str(&format!(
         "pub const UTC_TAI_HISTORY_URL: &str = \"{UTC_TAI_HISTORY_URL}\";\n"

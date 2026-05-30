@@ -25,5 +25,5 @@ Refresh IERS time data from the archive crate root:
 
 ```bash
 cd archive
-cargo run --bin siderust-archive-update-time-data --features fetch
+cargo run --features fetch --bin siderust-archive-update-time-data -- --archive-root .
 ```

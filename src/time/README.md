@@ -35,7 +35,7 @@ For the maintained IERS bundle, use the dedicated updater:
 
 ```bash
 cd archive
-cargo run --bin siderust-archive-update-time-data --features fetch
+cargo run --features fetch --bin siderust-archive-update-time-data -- --archive-root .
 ```
 
 The updater refreshes runtime-fetched raw files, provenance, and
