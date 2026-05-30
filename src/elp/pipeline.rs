@@ -22,16 +22,19 @@ use std::fmt::Write;
 fn dataset_sha256(data_dir: &Path) -> Result<(String, u64)> {
     use sha2::{Digest, Sha256};
 
-    let mut paths: Vec<PathBuf> = fs::read_dir(data_dir)
-        .with_context(|| format!("read-dir {data_dir:?}"))?
-        .filter_map(|e| e.ok().map(|e| e.path()))
-        .filter(|p| {
-            p.file_name()
-                .and_then(|n| n.to_str())
-                .map(|s| s.starts_with("ELP"))
-                .unwrap_or(false)
-        })
-        .collect();
+    let mut paths: Vec<PathBuf> = Vec::new();
+    for entry_result in fs::read_dir(data_dir).with_context(|| format!("read-dir {data_dir:?}"))? {
+        let entry = entry_result.with_context(|| format!("reading dir entry in {data_dir:?}"))?;
+        let path = entry.path();
+        if path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(|s| s.starts_with("ELP"))
+            .unwrap_or(false)
+        {
+            paths.push(path);
+        }
+    }
     paths.sort();
 
     let mut hasher = Sha256::new();
@@ -114,30 +117,54 @@ fn parse_file(path: &Path, n_ints: usize, n_floats: usize) -> Result<Vec<Entry>>
     let line_re = Regex::new(r"^\s*[-+]?\d").unwrap();
     let token_re = Regex::new(r"[-+]?\d+\.\d+|[-+]?\d+").unwrap();
 
-    reader
-        .lines()
-        .map_while(Result::ok)
-        .filter(|l| line_re.is_match(l))
-        .map(|l| parse_line(&l, n_ints, n_floats, &token_re))
-        .collect()
+    let mut result = Vec::new();
+    for line_res in reader.lines() {
+        let line = line_res.with_context(|| format!("reading line from {path:?}"))?;
+        if line_re.is_match(&line) {
+            result.push(parse_line(&line, n_ints, n_floats, &token_re)?);
+        }
+    }
+    Ok(result)
 }
 
 fn parse_all_elps(dir: &Path) -> Result<BTreeMap<String, Vec<Entry>>> {
     let mut map = BTreeMap::new();
 
-    let mut paths: Vec<_> = fs::read_dir(dir)
-        .with_context(|| format!("read-dir {dir:?}"))?
-        .filter_map(|e| e.ok())
-        .map(|e| e.path())
-        .filter(|p| {
-            p.file_name()
-                .and_then(|n| n.to_str())
-                .map(|s| s.starts_with("ELP"))
-                .unwrap_or(false)
+    let mut paths: Vec<_> = Vec::new();
+    for entry_result in fs::read_dir(dir).with_context(|| format!("read-dir {dir:?}"))? {
+        let entry = entry_result.with_context(|| format!("reading dir entry in {dir:?}"))?;
+        let path = entry.path();
+        if path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(|s| s.starts_with("ELP"))
+            .unwrap_or(false)
+        {
+            paths.push(path);
+        }
+    }
+    paths.sort();
+
+    // Verify the complete ELP1..ELP36 inventory is present before parsing.
+    let found_keys: std::collections::BTreeSet<String> = paths
+        .iter()
+        .filter_map(|p| {
+            p.file_stem()
+                .and_then(|s| s.to_str())
+                .map(|s| s.to_uppercase())
         })
         .collect();
-
-    paths.sort();
+    let expected_keys: std::collections::BTreeSet<String> =
+        (1u32..=36).map(|i| format!("ELP{i}")).collect();
+    let missing: Vec<_> = expected_keys.difference(&found_keys).cloned().collect();
+    if !missing.is_empty() {
+        anyhow::bail!(
+            "ELP2000: incomplete raw dataset in {:?}. Missing files: {:?}. \
+             Place all ELP1..ELP36 files in the raw directory.",
+            dir,
+            missing
+        );
+    }
 
     for path in paths {
         let key = path.file_stem().unwrap().to_string_lossy().to_uppercase();

@@ -39,10 +39,16 @@ const ALLOWED_KINDS: &[&str] = &[
     "atmosphere",
 ];
 
+const ALLOWED_STATUSES: &[&str] = &["active", "partial", "pending-migration", "skeleton"];
+
 #[derive(Debug, Deserialize)]
 struct RootManifest {
     #[serde(default)]
     schema_version: Option<u32>,
+    #[serde(default)]
+    archive_name: String,
+    #[serde(default)]
+    archive_version: String,
     #[serde(rename = "family", default)]
     families: Vec<FamilyEntry>,
 }
@@ -75,6 +81,12 @@ struct FamilyManifest {
     files: Vec<FileEntry>,
     #[serde(default, rename = "remote_files")]
     remote_files: Vec<RemoteFileEntry>,
+    #[serde(default, rename = "references")]
+    references: Vec<ReferenceEntry>,
+    #[serde(default)]
+    error_metrics: Option<toml::Value>,
+    #[serde(default, rename = "points")]
+    points: Vec<toml::Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -101,6 +113,16 @@ struct RemoteFileEntry {
     size_hint: Option<String>,
     #[serde(default)]
     notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ReferenceEntry {
+    #[serde(default)]
+    citation: Option<String>,
+    #[serde(default)]
+    doi: Option<String>,
+    #[serde(default)]
+    url: Option<String>,
 }
 
 #[derive(Default)]
@@ -147,11 +169,16 @@ fn validate_relative_path(path: &Path, label: &str, rel_path: &str, report: &mut
 }
 
 fn validate_root(root: &RootManifest, archive_dir: &Path, report: &mut Report) {
-    if root.schema_version.is_some_and(|v| v != 1) {
-        report.error(format!(
-            "MANIFEST.toml: schema_version must be 1, got {:?}",
-            root.schema_version
-        ));
+    match root.schema_version {
+        Some(1) => {}
+        Some(v) => report.error(format!("MANIFEST.toml: schema_version must be 1, got {v}")),
+        None => report.error("MANIFEST.toml: schema_version is missing"),
+    }
+    if root.archive_name.is_empty() {
+        report.error("MANIFEST.toml: archive_name is missing or empty");
+    }
+    if root.archive_version.is_empty() {
+        report.error("MANIFEST.toml: archive_version is missing or empty");
     }
     if root.families.is_empty() {
         report.warn("MANIFEST.toml: no [[family]] entries found");
@@ -162,6 +189,11 @@ fn validate_root(root: &RootManifest, archive_dir: &Path, report: &mut Report) {
         }
         if entry.manifest.is_empty() {
             report.error(format!("family {}: manifest path is empty", entry.id));
+        } else if entry.manifest.contains("..") || entry.manifest.starts_with('/') {
+            report.error(format!(
+                "family {}: manifest path '{}' contains path traversal or is absolute",
+                entry.id, entry.manifest
+            ));
         }
         if entry.kind.is_empty() {
             report.error(format!("family {}: kind is empty", entry.id));
@@ -173,6 +205,11 @@ fn validate_root(root: &RootManifest, archive_dir: &Path, report: &mut Report) {
         }
         if entry.status.is_empty() {
             report.error(format!("family {}: status is empty", entry.id));
+        } else if !ALLOWED_STATUSES.contains(&entry.status.as_str()) {
+            report.error(format!(
+                "family {}: status '{}' is not in the allowed set {:?}",
+                entry.id, entry.status, ALLOWED_STATUSES
+            ));
         }
         let manifest_path = archive_dir.join(&entry.manifest);
         if !manifest_path.exists() {
@@ -257,8 +294,33 @@ fn validate_family(path: &Path, expected_id: Option<&str>, report: &mut Report) 
         ));
     }
 
-    for file in &manifest.files {
+    // Lagrange-Chebyshev: require error metrics or per-point validation data.
+    if manifest.dataset_kind == "lagrange-chebyshev"
+        && manifest.error_metrics.is_none()
+        && manifest.points.is_empty()
+    {
+        report.error(format!(
+            "{}: dataset_kind 'lagrange-chebyshev' requires either [error_metrics] or [[points]] \
+             entries with validation metrics",
+            path.display()
+        ));
+    }
+
+    for (i, file) in manifest.files.iter().enumerate() {
         validate_relative_path(path, "[[files]] entry", &file.path, report);
+        match &file.format {
+            Some(fmt) if fmt.is_empty() => report.error(format!(
+                "{}: file '{}' (index {i}) has empty format",
+                path.display(),
+                file.path
+            )),
+            None => report.error(format!(
+                "{}: file '{}' (index {i}) is missing required format field",
+                path.display(),
+                file.path
+            )),
+            _ => {}
+        }
         if file.sha256.is_empty() {
             report.error(format!(
                 "{}: file '{}' has empty sha256",
@@ -313,19 +375,16 @@ fn validate_family(path: &Path, expected_id: Option<&str>, report: &mut Report) 
         let hash = hex::encode(Sha256::digest(&data));
         if hash != file.sha256 {
             report.error(format!(
-                "{}: file '{}' SHA-256 mismatch:
-  expected {}
-  got      {}",
+                "{}: file '{}' SHA-256 mismatch:\n  expected {}\n  got      {}",
                 path.display(),
                 file.path,
                 file.sha256,
                 hash
             ));
         }
-        let _ = &file.format;
     }
 
-    for file in &manifest.remote_files {
+    for (i, file) in manifest.remote_files.iter().enumerate() {
         validate_relative_path(path, "[[remote_files]] entry", &file.path, report);
         if file.url.is_empty() {
             report.error(format!(
@@ -333,6 +392,19 @@ fn validate_family(path: &Path, expected_id: Option<&str>, report: &mut Report) 
                 path.display(),
                 file.path
             ));
+        }
+        match &file.format {
+            Some(fmt) if fmt.is_empty() => report.error(format!(
+                "{}: remote file '{}' (index {i}) has empty format",
+                path.display(),
+                file.path
+            )),
+            None => report.error(format!(
+                "{}: remote file '{}' (index {i}) is missing required format field",
+                path.display(),
+                file.path
+            )),
+            _ => {}
         }
         if file.sha256.is_empty() {
             report.error(format!(
@@ -343,6 +415,13 @@ fn validate_family(path: &Path, expected_id: Option<&str>, report: &mut Report) 
         } else if !is_valid_sha256(&file.sha256) {
             report.error(format!(
                 "{}: remote file '{}' sha256 is not a valid 64-char hex string",
+                path.display(),
+                file.path
+            ));
+        }
+        if file.bytes.is_none() && file.min_size.is_none() {
+            report.error(format!(
+                "{}: remote file '{}' must have at least one of 'bytes' or 'min_size'",
                 path.display(),
                 file.path
             ));
@@ -370,7 +449,16 @@ fn validate_family(path: &Path, expected_id: Option<&str>, report: &mut Report) 
                 ));
             }
         }
-        let _ = (&file.format, &file.size_hint, &file.notes);
+        let _ = (&file.size_hint, &file.notes);
+    }
+
+    for (i, reference) in manifest.references.iter().enumerate() {
+        if reference.citation.is_none() && reference.doi.is_none() && reference.url.is_none() {
+            report.warn(format!(
+                "{}: [[references]] entry {i} has none of 'citation', 'doi', or 'url'",
+                path.display()
+            ));
+        }
     }
 }
 

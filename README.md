@@ -1,133 +1,164 @@
-# Siderust Archive
+# siderust-archive
 
-Canonical storage for scientific coefficient tables, kernels, Chebyshev fits,
-and dataset-generation tools used by the
-[Siderust](https://github.com/Siderust/siderust) family of libraries.
+[![Crates.io](https://img.shields.io/crates/v/siderust-archive)](https://crates.io/crates/siderust-archive)
+[![docs.rs](https://img.shields.io/docsrs/siderust-archive)](https://docs.rs/siderust-archive)
+[![CI](https://github.com/Siderust/archive/actions/workflows/ci.yml/badge.svg)](https://github.com/Siderust/archive/actions/workflows/ci.yml)
+[![Update Time Data](https://github.com/Siderust/archive/actions/workflows/update-time-data.yml/badge.svg)](https://github.com/Siderust/archive/actions/workflows/update-time-data.yml)
+[![License: BSD-3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENSE)
 
-All metadata is stored in **TOML** so that any tooling — Rust, Python, Julia,
-or shell — can consume it directly. Binary payloads (SPICE `.bsp` kernels,
-Siderust Chebyshev Kernel `.sck` files, and raw upstream `.dat` files) are
-kept as-is in their authoritative formats.
+**Scientific dataset manifests, provenance, checksums, and Rust accessors for
+the Siderust ecosystem.**
 
----
+`siderust-archive` is the small Rust crate and repository layout used to keep
+Siderust scientific data out of downstream application code. It stores dataset
+metadata in TOML, keeps raw payloads in their native formats, and exposes only
+the Rust bindings needed to parse, verify, fetch, or bundle those datasets.
 
-## Repository layout
+> **Pre-1.0 archive:** manifest shape and feature-gated APIs may still change.
+> Release notes live in [CHANGELOG.md](CHANGELOG.md).
 
-```
-archive/
-├── README.md
-├── LICENSE
-├── Cargo.toml                   ← root-level `siderust-archive` crate manifest
-├── MANIFEST.toml                ← top-level registry of dataset families
-├── schema/                      ← machine-readable manifest specifications
-├── src/                         ← crate sources and bundled datasets
-├── generators/                  ← standalone Rust binary crates that produce data
-├── tools/                       ← validate / convert utilities
-└── reports/validation/          ← validator output
-```
+## Scope
 
-## Rust bindings
+- TOML archive and family manifests.
+- SHA-256 checksum helpers and provenance records.
+- IERS/USNO time-data parsing, runtime fetch, and bundled offline snapshots.
+- Build-time generated accessors for committed coefficient tables.
+- Dataset-family manifests for VSOP87, ELP2000, nutation, JPL kernels,
+  Lagrange kernels, gravity, atmosphere, frames, constants, and Pluto.
 
-The archive ships a reusable root-level Rust crate, `siderust-archive`,
-that provides the shared data-access layer: TOML manifest parsing, SHA-256
-verification, provenance, and runtime download of IERS time data. **The crate
-is published to [crates.io](https://crates.io/crates/siderust-archive)**, so
-downstream projects no longer need to vendor the archive as a git submodule:
+## Non-goals
+
+- Hiding upstream data provenance.
+- Fetching large or mutable datasets from downstream build scripts.
+- Silently replacing version-pinned datasets.
+- Re-implementing Siderust scientific algorithms in the archive crate.
+
+## Installation
 
 ```toml
-# Manifest + checksum only:
+[dependencies]
 siderust-archive = "0.1"
+```
 
-# IERS time-data types + parsers (e.g. tempoch):
+IERS time-data parsers and the bundled offline snapshot:
+
+```toml
+[dependencies]
 siderust-archive = { version = "0.1", features = ["time"] }
+```
 
-# Full runtime download manager:
+Runtime download/cache support for current IERS/USNO time data and JPL kernel
+metadata:
+
+```toml
+[dependencies]
 siderust-archive = { version = "0.1", features = ["fetch"] }
 ```
 
-The crate declares an empty `[workspace]` table so it is never absorbed into a
-consuming repository's cargo workspace when consumed via a `path` dependency.
-
-
-## Conventions
-
-- **Format**: every manifest is TOML. JSON is forbidden.
-- **Provenance**: every dataset records source, generator, generator version,
-  git commit if available, validity interval, frame, time scale, units, and
-  SHA-256 checksums.
-- **Reproducibility**: dataset generators are explicit. They are *never*
-  invoked from a downstream consumer's build script.
-- **Determinism**: file SHA-256 digests are committed alongside the data so
-  validators can detect silent corruption.
-- **No giant Rust arrays**: large embedded `.rs` tables in downstream crates
-  are removed and replaced with `include_bytes!`-based loaders or external
-  paths.
-
-## Manifest schema (v1)
-
-See [`schema/archive-manifest-v1.md`](schema/archive-manifest-v1.md) for the
-authoritative specification. Quick reference:
+Planetary and geophysical tables are opt-in:
 
 ```toml
-schema_version       = 1
-dataset_id           = "vsop87"
-dataset_kind         = "planetary-theory"
-source               = "Bretagnon & Francou 1988 (IMCCE)"
-generator            = "siderust/import-vsop87"
-generator_version    = "0.8.0"
-git_commit           = "deadbeef"
-generated_at         = "2026-05-28T20:00:00Z"
-time_scale           = "TDB-compatible JD"
-frame                = "EclipticMeanJ2000"
-center               = "Sun"
-units                = "AU, day"
-valid_from_jd        = 625296.5
-valid_to_jd          = 2816787.5
-dynamical_model      = "VSOP87 A/E"
-
-[[files]]
-path   = "raw/vsop87a.dat"
-format = "vsop87-text"
-sha256 = "…"
-bytes  = 1392704
-
-[[references]]
-citation = "Bretagnon, P., Francou, G. (1988). Planetary theories in rectangular and spherical variables. A&A 202, 309-315."
+[dependencies]
+siderust-archive = { version = "0.1", features = ["vsop", "elp", "nutation"] }
 ```
 
-## Adding a dataset
+The crate declares its own `[workspace]`, so it is not absorbed into a parent
+workspace when used through a local `path` dependency.
 
-1. Place upstream raw data in `src/<family>/raw/`.
-2. Create or extend `src/<family>/manifest.toml` and register it in `MANIFEST.toml`.
-3. Run the validator from the repository root: `cargo run -p archive-validate -- MANIFEST.toml`.
-4. Commit and bump the consuming `siderust` submodule pointer.
+## Feature Flags
 
-## Regenerating derived datasets
+| Feature | Description |
+|---------|-------------|
+| default | Manifest, checksum, provenance, and shared error APIs only. |
+| `time` | IERS UTC-TAI, Delta T, and EOP types/parsers; includes `bundled-time`. |
+| `bundled-time` | Compiled UTC-TAI and Delta T fallback snapshot. |
+| `fetch` | Runtime network download/cache support; implies `time` and `jpl`. |
+| `jpl` | JPL DE440/DE441 ephemeris metadata and cache manager. |
+| `vsop` | VSOP87A/E planetary theory tables. |
+| `elp` | ELP2000-82B lunar theory tables. |
+| `nutation` | IAU 2000A/2000B nutation coefficient tables. |
+| `gravity` | Low-degree EGM2008 geopotential coefficients. |
+| `atmosphere` | NRLMSISE-00 lite atmosphere-density table. |
+| `frames` | SPICE-style frame definitions placeholder. |
+| `constants` | SPICE-style body constants placeholder. |
+| `lagrange` | Sun-Earth Lagrange Chebyshev kernel references. |
+| `pluto` | Meeus 1998 abbreviated Pluto series. |
 
-Each generator documents its own recipe under
-`generators/<name>/README.md`. Generators must:
+## Archive Layout
 
-- write outputs only under `archive/<family>/`,
-- compute SHA-256 for each output,
-- update the family `manifest.toml`,
-- record the git commit and generator version.
+```text
+archive/
+├── CHANGELOG.md
+├── Cargo.toml
+├── LICENSE
+├── MANIFEST.toml                # top-level dataset registry
+├── README.md
+├── schema/                      # manifest and binary-format specs
+├── src/                         # crate sources and committed datasets
+├── tools/validate/              # structural manifest validator
+└── reports/validation/          # validation output, when present
+```
 
-## Consuming the archive from Rust
+Start with [`MANIFEST.toml`](MANIFEST.toml). Each `[[family]]` entry points to
+a `src/<family>/manifest.toml` file that records source, generator, validity,
+units, references, payload files, byte counts, and SHA-256 checksums.
 
-Downstream Rust crates depend on `siderust-archive` directly and opt into the
-dataset families they need. Manifest/checksum/provenance APIs are always on;
-feature flags add optional datasets and runtime fetch support:
+## Manifest Conventions
 
-- `time`, `jpl`, `fetch`
-- `vsop`, `elp`, `nutation`, `gravity`, `atmosphere`
-- `frames`, `constants`, `lagrange`, `pluto`
+- Metadata is TOML. JSON is not used for archive manifests or provenance.
+- Payload files keep their authoritative upstream format where practical.
+- Generated Rust tables are build artifacts under Cargo `OUT_DIR`; do not
+  commit them.
+- Dataset generators must record source, generator version, generated time,
+  references, byte counts, and checksums.
 
-Without feature flags the crate stays lightweight and avoids bundling large
-datasets.
+Validate the registry and all referenced family manifests:
+
+```bash
+cargo run -p archive-validate -- MANIFEST.toml
+```
+
+## Adding Data
+
+1. Put upstream payloads under `src/<family>/raw/` or the family-specific
+   payload directory.
+2. Update `src/<family>/manifest.toml`.
+3. Register new families in `MANIFEST.toml`.
+4. Run `cargo run -p archive-validate -- MANIFEST.toml`.
+5. Build with the relevant feature enabled, for example
+   `cargo check --features nutation`.
+
+Large mutable datasets need a reviewed process before they become automated.
+
+## Time-Data Maintenance
+
+IERS/USNO time data are operational data. The weekly
+[`Update Time Data`](https://github.com/Siderust/archive/actions/workflows/update-time-data.yml)
+workflow may refresh only:
+
+- `src/time/eop/raw/`
+- `src/time/bundled/snapshot.rs`
+
+The snapshot carries TOML provenance in `time_data.provenance.toml`, and the
+workflow validates manifests before committing or publishing. Runtime fetch is
+still available behind `features = ["fetch"]` for users who want current
+upstream data without waiting for the next committed snapshot.
+
+Other archive families are manual/version-pinned. The time-data workflow must
+not replace JPL kernels, VSOP/ELP, nutation, gravity, atmosphere, frames,
+constants, or derived kernels.
+
+## Releases
+
+Manual releases should update [CHANGELOG.md](CHANGELOG.md) before tagging.
+Automated IERS/USNO data-refresh patch releases add a generated changelog
+entry for the new patch version and only publish when validation, tests, the
+WIP guard, and crates.io credentials all pass.
 
 ## License
 
-The archive code and tooling are released under the BSD 3-Clause License (see
-[`LICENSE`](LICENSE)). Each upstream dataset retains the license declared by
-its original author; see the per-family `manifest.toml` and
-`references` arrays for attribution.
+BSD-3-Clause — see [LICENSE](LICENSE).
+
+Each upstream dataset keeps the license and attribution declared by its
+original source. Check the relevant family manifest before redistributing data
+payloads outside this repository.

@@ -1,12 +1,14 @@
 # IERS Earth Orientation Parameters (EOP) and ΔT.
 #
 # Canonical, repo-agnostic home for the IERS time data formerly embedded in
-# tempoch as a 5.3 MB generated Rust array (`eop_data.rs`). The raw upstream
-# files are NOT committed here (they are large and updated daily); instead they
-# are downloaded on demand at runtime by the `siderust-archive-data` crate
-# (`time::TimeDataManager`, `fetch` feature), which verifies their SHA-256 and
-# records a provenance entry. The `raw/` directory is the runtime cache target
-# and the location a maintainer would commit a frozen snapshot to if desired.
+# tempoch as a 5.3 MB generated Rust array (`eop_data.rs`). IERS/USNO files are
+# operational data: upstream publishes updates regularly, while this repository
+# may carry a committed frozen snapshot for reproducible builds and releases.
+# The scheduled `update-time-data` workflow refreshes that committed snapshot
+# under `src/time/eop/raw/` and regenerates `src/time/bundled/snapshot.rs`.
+# Users who need current upstream data without waiting for a committed snapshot
+# can still use `siderust_archive::time::TimeDataManager` behind the `fetch`
+# feature; runtime fetch verifies SHA-256 and writes TOML provenance.
 
 schema_version    = 1
 dataset_id        = "time-iers-eop"
@@ -24,15 +26,19 @@ valid_to_jd       = 2461000.5
 dynamical_model   = "Observed (Bulletin C04) and predicted (Bulletin A) Earth orientation"
 
 notes = """
-The raw files are obtained at runtime, not committed:
+The raw files are operational IERS/USNO data. The repository may carry a frozen
+snapshot under `src/time/eop/raw/` so crate releases remain reproducible, and
+the scheduled workflow may refresh that snapshot:
   * finals2000A.all  — IERS daily EOP (PM x/y, UT1-UTC, LOD, dX/dY).
   * deltat.data      — USNO observed ΔT history.
   * deltat.preds     — USNO predicted ΔT.
   * UTC-TAI.history  — IERS leap-second / pre-1972 rubber-second history.
-After a successful fetch, `siderust-archive-data` writes a
-`time_data.provenance.toml` next to the cached files recording the fetch
-timestamp and per-file SHA-256. Populate `[[files]]` below from that record if
-a snapshot is committed.
+
+Runtime fetch remains available through
+`siderust_archive::time::TimeDataManager` when users want current upstream data
+without waiting for a committed snapshot. After a successful fetch,
+`siderust-archive` writes `time_data.provenance.toml` next to the fetched files
+recording the fetch timestamp and per-file SHA-256.
 """
 
 [[references]]

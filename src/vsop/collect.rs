@@ -100,6 +100,59 @@ fn parse_data_line(line: &str) -> Option<(f64, f64, f64, f64, f64)> {
     Some((s, k, a, b, c))
 }
 
+/// Expected file extensions (planet/body codes) for VSOP87A.
+/// Version A uses heliocentric rectangular coordinates; it covers 8 planets
+/// plus the Earth-Moon barycenter but not the Sun.
+const VSOP87A_REQUIRED: &[&str] = &[
+    "VSOP87A.ear",
+    "VSOP87A.emb",
+    "VSOP87A.jup",
+    "VSOP87A.mar",
+    "VSOP87A.mer",
+    "VSOP87A.nep",
+    "VSOP87A.sat",
+    "VSOP87A.ura",
+    "VSOP87A.ven",
+];
+
+/// Expected file names for VSOP87E.
+/// Version E uses barycentric rectangular coordinates; it includes the Sun
+/// instead of the Earth-Moon barycenter.
+const VSOP87E_REQUIRED: &[&str] = &[
+    "VSOP87E.ear",
+    "VSOP87E.jup",
+    "VSOP87E.mar",
+    "VSOP87E.mer",
+    "VSOP87E.nep",
+    "VSOP87E.sat",
+    "VSOP87E.sun",
+    "VSOP87E.ura",
+    "VSOP87E.ven",
+];
+
+/// Validate that the required VSOP87A and VSOP87E files are all present.
+///
+/// Called only when the raw directory is non-empty. Returns an error if any
+/// expected file is missing so that a partial dataset is caught early rather
+/// than silently generating incomplete Rust tables.
+fn validate_vsop_inventory(data_dir: &Path) -> anyhow::Result<()> {
+    let mut missing = Vec::new();
+    for name in VSOP87A_REQUIRED.iter().chain(VSOP87E_REQUIRED.iter()) {
+        if !data_dir.join(name).exists() {
+            missing.push(*name);
+        }
+    }
+    if !missing.is_empty() {
+        anyhow::bail!(
+            "VSOP87: incomplete raw dataset in {:?}. Missing files: {:?}. \
+             Place all required VSOP87A and VSOP87E files in the raw directory.",
+            data_dir,
+            missing
+        );
+    }
+    Ok(())
+}
+
 /// Build a [`VersionMap`] from the dataset found under `data_dir`.
 ///
 /// * Walks every file matching [`REGEX_FILE`].
@@ -112,15 +165,15 @@ pub(crate) fn collect_terms(data_dir: &Path) -> anyhow::Result<VersionMap> {
     let file_re = Regex::new(REGEX_FILE)?;
     let header_re = Regex::new(HEADER_REGEX)?;
 
+    // Validate the inventory before parsing so that a partial dataset fails
+    // clearly rather than silently producing incomplete Rust tables.
+    validate_vsop_inventory(data_dir)?;
+
     let mut versions: VersionMap = BTreeMap::new();
 
     // --- Walk every file under `data_dir` ----------------------------------
-    for entry in WalkDir::new(data_dir)
-        .min_depth(1) // skip the root dir itself
-        .into_iter()
-        .filter_map(Result::ok)
-    // discard IO errors
-    {
+    for entry in WalkDir::new(data_dir).min_depth(1).into_iter() {
+        let entry = entry.with_context(|| format!("reading directory entry in {:?}", data_dir))?;
         let path = entry.path();
         let fname = path.file_name().unwrap().to_string_lossy();
 

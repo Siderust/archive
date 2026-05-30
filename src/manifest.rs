@@ -148,8 +148,7 @@ pub struct FamilyManifest {
 pub struct FileEntry {
     /// Path relative to the manifest's directory.
     pub path: String,
-    #[serde(default)]
-    pub format: Option<String>,
+    pub format: String,
     pub sha256: String,
     pub bytes: u64,
 }
@@ -237,6 +236,9 @@ impl FamilyManifest {
             if file.path.is_empty() {
                 errors.push("[[files]] entry has empty path".into());
             }
+            if file.format.is_empty() {
+                errors.push(format!("file '{}': format is empty", file.path));
+            }
             if file.sha256.is_empty() {
                 errors.push(format!("file '{}': sha256 is empty", file.path));
             }
@@ -310,11 +312,44 @@ url      = "https://datacenter.iers.org/data/9/finals2000A.all"
         let m = FamilyManifest::parse(FAMILY).unwrap();
         assert_eq!(m.dataset_id, "time-iers-eop");
         assert_eq!(m.files.len(), 1);
-        assert_eq!(m.files[0].format.as_deref(), Some("iers-finals2000A"));
+        assert_eq!(m.files[0].format, "iers-finals2000A");
         assert_eq!(m.files[0].bytes, 10000);
         assert_eq!(m.references.len(), 1);
         assert!(m.valid_from_jd < m.valid_to_jd);
         assert!(m.validate().is_empty());
+    }
+
+    #[test]
+    fn parses_remote_file_entry() {
+        let text = r#"
+schema_version    = 1
+dataset_id        = "jpl-de440"
+dataset_kind      = "planetary-ephemeris"
+source            = "JPL Solar System Dynamics"
+generator         = "upstream"
+generator_version = "de440"
+generated_at      = "2021-02-10T00:00:00Z"
+time_scale        = "TDB"
+frame             = "ICRF"
+center            = "Solar-System-Barycenter"
+units             = "km, km/s"
+valid_from_jd     = 2287184.5
+valid_to_jd       = 2688976.5
+dynamical_model   = "JPL DE440"
+
+[[remote_files]]
+path      = "de440.bsp"
+url       = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de440.bsp"
+sha256    = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+format    = "spice-bsp"
+min_size  = 100000
+"#;
+        let m = FamilyManifest::parse(text).unwrap();
+        assert_eq!(m.remote_files.len(), 1);
+        assert_eq!(m.remote_files[0].path, "de440.bsp");
+        assert_eq!(m.remote_files[0].format.as_deref(), Some("spice-bsp"));
+        assert_eq!(m.remote_files[0].min_size, Some(100000));
+        assert!(m.files.is_empty());
     }
 
     #[test]

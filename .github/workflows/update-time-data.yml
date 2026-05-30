@@ -1,18 +1,34 @@
 name: Update Time Data
 
-# Runs every Monday at 05:23 UTC and refreshes the canonical IERS raw files
-# under `src/time/eop/raw/` (plus their provenance JSON). If any file changed,
-# commits the update to `main` and triggers a patch-version publish to
-# crates.io.
+# Runs every Monday at 05:23 UTC and refreshes only the committed IERS/USNO
+# time-data snapshot:
 #
-# Required repository secret:
+#   - `src/time/eop/raw/`
+#   - `src/time/bundled/snapshot.rs`
+#
+# The raw snapshot includes `time_data.provenance.toml`. Runtime fetching of
+# current upstream IERS/USNO data remains available to users behind the
+# `fetch` feature via `siderust_archive::time::TimeDataManager`.
+#
+# This workflow must not mutate JPL kernels, VSOP/ELP, nutation, gravity,
+# atmosphere, frames, constants, or derived kernels. Those datasets remain
+# version-pinned/manual unless a separate reviewed maintenance process is
+# introduced.
+#
+# If IERS/USNO files changed, the workflow commits the refreshed snapshot to
+# `main`. It may publish a patch release only when validation and tests pass,
+# no non-data commits exist since the last version tag, and
+# `CARGO_REGISTRY_TOKEN` is configured. Each automated maintenance release
+# records a deterministic patch-version entry in `CHANGELOG.md`.
+#
+# Optional repository secret for auto-publish:
 #   CARGO_REGISTRY_TOKEN  - crates.io API token with publish rights on
 #                           `siderust-archive`.
 #
 # WIP guard: if any commit exists on main since the last `v*.*.*` tag that
-# touches files outside `time/eop/raw/**`, the publish job is skipped (the
-# refresh commit itself is excluded by the pathspec), to avoid shipping
-# unreviewed feature work as a data-refresh patch release.
+# touches files outside `src/time/eop/raw/**` or `src/time/bundled/snapshot.rs`,
+# the publish job is skipped. This avoids shipping unreviewed feature work as
+# a data-refresh patch release.
 
 on:
   workflow_dispatch:
@@ -29,7 +45,7 @@ concurrency:
 
 jobs:
   refresh:
-    name: Refresh IERS raw files
+    name: Refresh IERS/USNO time snapshot
     runs-on: ubuntu-latest
     outputs:
       data_changed: ${{ steps.commit.outputs.data_changed }}
@@ -50,7 +66,31 @@ jobs:
             --bin siderust-archive-update-time-data -- \
             --archive-root "${GITHUB_WORKSPACE}"
 
-      - name: Validate the refreshed bundle
+      - name: Enforce time-data-only refresh scope
+        run: |
+          set -euo pipefail
+          mapfile -t changed < <(git status --porcelain --untracked-files=all | sed -E 's/^...//')
+          unexpected=()
+          for path in "${changed[@]}"; do
+            case "$path" in
+              src/time/eop/raw/*|src/time/bundled/snapshot.rs)
+                ;;
+              *)
+                unexpected+=("$path")
+                ;;
+            esac
+          done
+          if [ "${#unexpected[@]}" -ne 0 ]; then
+            echo "::error::Time-data refresh changed files outside the approved IERS/USNO snapshot paths."
+            printf 'Unexpected path: %s\n' "${unexpected[@]}"
+            exit 1
+          fi
+
+      - name: Validate manifests
+        working-directory: .
+        run: cargo run -p archive-validate -- MANIFEST.toml
+
+      - name: Test the refreshed bundle
         working-directory: .
         run: cargo test --all-features
 
@@ -65,11 +105,11 @@ jobs:
           set -euo pipefail
           git add src/time/eop/raw/ src/time/bundled/snapshot.rs
           if git diff --cached --quiet; then
-            echo "No IERS data changes; skipping commit."
+            echo "No IERS/USNO data changes; skipping commit."
             echo "data_changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          git commit -m "chore: refresh IERS time-data bundle"
+          git commit -m "chore: refresh IERS/USNO time-data snapshot"
           git push origin HEAD:main
           echo "data_changed=true" >> "$GITHUB_OUTPUT"
 
@@ -94,8 +134,8 @@ jobs:
           set -euo pipefail
           LAST_TAG=$(git describe --tags --abbrev=0 --match "v[0-9]*.[0-9]*.[0-9]*" 2>/dev/null || echo "")
           if [ -z "$LAST_TAG" ]; then
-            echo "No version tag found; skipping WIP check."
-            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No version tag found. Skipping auto-publish because non-data history cannot be bounded."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           echo "Last version tag: $LAST_TAG"
@@ -110,9 +150,30 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Bump patch version
-        id: versions
+      - name: Check crates.io token
+        id: publish_token
         if: steps.wip.outputs.skip != 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
+            echo "::warning::CARGO_REGISTRY_TOKEN is not configured. Skipping auto-publish."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate release candidate
+        if: steps.wip.outputs.skip != 'true' && steps.publish_token.outputs.skip != 'true'
+        working-directory: .
+        run: |
+          cargo run -p archive-validate -- MANIFEST.toml
+          cargo test --all-features
+
+      - name: Bump patch version and changelog
+        id: versions
+        if: steps.wip.outputs.skip != 'true' && steps.publish_token.outputs.skip != 'true'
         working-directory: .
         run: |
           set -euo pipefail
@@ -122,11 +183,64 @@ jobs:
           PATCH=$(echo "$CUR" | cut -d. -f3)
           NEW="${MAJOR}.${MINOR}.$((PATCH + 1))"
           sed -i -E "s/^version *= *\"${CUR}\"/version = \"${NEW}\"/" Cargo.toml
+          RELEASE_DATE=$(date -u +%F)
+          NEW_VERSION="$NEW" RELEASE_DATE="$RELEASE_DATE" python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          path = Path("CHANGELOG.md")
+          if not path.exists():
+              raise SystemExit("CHANGELOG.md is missing")
+
+          text = path.read_text(encoding="utf-8")
+          lines = text.splitlines()
+          version = os.environ["NEW_VERSION"]
+          release_date = os.environ["RELEASE_DATE"]
+
+          unreleased = None
+          for index, line in enumerate(lines):
+              if line.strip() == "## [Unreleased]":
+                  unreleased = index
+                  break
+          if unreleased is None:
+              raise SystemExit("CHANGELOG.md is missing a '## [Unreleased]' section")
+
+          next_heading = None
+          for index in range(unreleased + 1, len(lines)):
+              if re.match(r"^## \[[^\]]+\]", lines[index]):
+                  next_heading = index
+                  break
+          if next_heading is None:
+              raise SystemExit("CHANGELOG.md is missing a version section after [Unreleased]")
+
+          heading = f"## [{version}] - {release_date}"
+          if any(line.strip() == heading for line in lines):
+              path.write_text(text if text.endswith("\n") else text + "\n", encoding="utf-8")
+              raise SystemExit(0)
+          if any(re.match(rf"^## \[{re.escape(version)}\] - ", line) for line in lines):
+              raise SystemExit(f"CHANGELOG.md already contains an entry for {version} with a different date")
+
+          entry = [
+              heading,
+              "",
+              "### Changed",
+              "- Refreshed IERS/USNO time-data snapshot:",
+              "  - `UTC-TAI.history`",
+              "  - `deltat.data`",
+              "  - `deltat.preds`",
+              "  - `finals2000A.all`",
+              "- Regenerated bundled time-data snapshot in `src/time/bundled/snapshot.rs`.",
+              "",
+          ]
+          updated = lines[:next_heading] + entry + lines[next_heading:]
+          path.write_text("\n".join(updated) + "\n", encoding="utf-8")
+          PY
           echo "Bumped siderust-archive ${CUR} -> ${NEW}"
           echo "version=${NEW}" >> "$GITHUB_OUTPUT"
 
       - name: Commit, tag, push
-        if: steps.wip.outputs.skip != 'true'
+        if: steps.wip.outputs.skip != 'true' && steps.publish_token.outputs.skip != 'true'
         env:
           GIT_AUTHOR_NAME: github-actions[bot]
           GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
@@ -135,13 +249,29 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ steps.versions.outputs.version }}"
-          git add Cargo.toml
+          git add Cargo.toml CHANGELOG.md
+          mapfile -t staged < <(git diff --cached --name-only)
+          unexpected=()
+          for path in "${staged[@]}"; do
+            case "$path" in
+              Cargo.toml|CHANGELOG.md)
+                ;;
+              *)
+                unexpected+=("$path")
+                ;;
+            esac
+          done
+          if [ "${#unexpected[@]}" -ne 0 ]; then
+            echo "::error::Release commit staged files outside Cargo.toml and CHANGELOG.md."
+            printf 'Unexpected staged path: %s\n' "${unexpected[@]}"
+            exit 1
+          fi
           git commit -m "chore(release): siderust-archive v${VERSION}"
           git tag -a "v${VERSION}" -m "Release ${VERSION} (automated data-refresh patch)"
           git push origin HEAD:main --tags
 
       - name: Publish to crates.io
-        if: steps.wip.outputs.skip != 'true'
+        if: steps.wip.outputs.skip != 'true' && steps.publish_token.outputs.skip != 'true'
         working-directory: .
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
