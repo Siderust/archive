@@ -252,7 +252,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "siderust",
- "siderust-archive 0.1.1",
+ "siderust-archive 0.1.2",
 ]
 
 [[package]]
@@ -703,7 +703,7 @@ dependencies = [
  "quick-xml",
  "serde",
  "serde_json",
- "siderust-archive 0.1.1",
+ "siderust-archive 0.1.2",
  "tempoch",
  "thiserror",
  "wide",
@@ -711,7 +711,7 @@ dependencies = [
 
 [[package]]
 name = "siderust-archive"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -726,7 +726,7 @@ dependencies = [
 
 [[package]]
 name = "siderust-archive"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c885202514dc0a0795738b019d259482da029d1bc36869c14aab470543fbb65"
 dependencies = [
@@ -788,7 +788,7 @@ dependencies = [
  "chrono",
  "qtty",
  "serde",
- "siderust-archive 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "siderust-archive 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

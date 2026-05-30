@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing git tag to publish (e.g. v0.1.1). Must already exist on main."
+        description: "Existing git tag to publish (e.g. v0.1.2). Must already exist on main."
         required: true
   push:
     tags:

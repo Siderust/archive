@@ -12,6 +12,11 @@ The format is based on Keep a Changelog, and this project uses Semantic Versioni
 
 ### Fixed
 
+## [0.1.2] - 2026-05-30
+
+### Added
+- lagrange generator
+
 ## [0.1.1] - 2026-05-30
 
 ### Changed
