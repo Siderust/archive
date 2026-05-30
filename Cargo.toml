@@ -15,7 +15,7 @@ categories = ["science", "aerospace", "parser-implementations"]
 # The archive is its own repository; this crate must stand alone and not be
 # absorbed into a parent repository's cargo workspace.
 [workspace]
-members = [".", "tools/validate", "tools/generate-lagrange-cheby"]
+members = [".", "tools/validate"]
 
 [features]
 default = []

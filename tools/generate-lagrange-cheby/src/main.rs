@@ -10,7 +10,7 @@
 //!
 //! ```sh
 //! cd archive
-//! cargo run -p generate-lagrange-cheby -- \
+//! cargo run --manifest-path tools/generate-lagrange-cheby/Cargo.toml -- \
 //!     --source vsop87 \
 //!     --out src/lagrange/vsop87 \
 //!     --from 2415020.5 \

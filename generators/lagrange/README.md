@@ -4,14 +4,14 @@ Standalone tool crate at [`../../tools/generate-lagrange-cheby/`](../../tools/ge
 that produces the `src/lagrange/<source>/` kernels (`l*.sck` + `manifest.toml`).
 
 The generator depends on `siderust` for the Lagrange fit/solver APIs and on
-`siderust-archive` for checksum helpers. It is a workspace member of the
-archive repository (same pattern as `archive-validate`).
+`siderust-archive` for checksum helpers. Build it with its manifest directly;
+it is not part of the archive workspace test surface.
 
 ## Invocation
 
 ```sh
 cd archive
-cargo run -p generate-lagrange-cheby -- \
+cargo run --manifest-path tools/generate-lagrange-cheby/Cargo.toml -- \
     --source vsop87 \
     --out src/lagrange/vsop87 \
     --from 2415020.5 \
