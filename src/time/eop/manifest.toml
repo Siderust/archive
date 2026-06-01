@@ -85,6 +85,6 @@ bytes  = 3746464
 [[files]]
 path   = "raw/time_data.provenance.toml"
 format = "siderust-time-provenance-toml"
-sha256 = "95c368090da9fde1ea18f215bc89f4d61a49be4a2329fb682a8a62b8df123af1"
+sha256 = "d3f55eba7b72712e40924a20df7d649cb232b64c9993bb4b8992a76a59d7a9d1"
 bytes  = 396
 # END GENERATED FILE ENTRIES — update-time-data
