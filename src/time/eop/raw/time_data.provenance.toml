@@ -1,5 +1,5 @@
-fetched_utc = "2026-07-13T08:30:29"
+fetched_utc = "2026-08-03T08:46:17"
 utc_tai_sha256 = "54e702abdc388ae3bf8cfc5f126900a5277829ad90e80f6773df6e714a133642"
 delta_t_observed_sha256 = "9f88e53593495a09219fe956eeadea0fa9f8e3e02c310b2aa2b70852383cdf6f"
 delta_t_predictions_sha256 = "5d864fddd30b2c64d2a86d3debbb25604eb5de44370c96bccf2abd5463f3db08"
-eop_finals_sha256 = "5ae7d47cd4926e7728f1dfcea52f9daa2729a76bec659372b0de1610fcb92cbd"
+eop_finals_sha256 = "4b828090fc94114168014b61439fa5e6ec0bdfda518075a32baffea90110954d"
