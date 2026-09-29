@@ -21,6 +21,8 @@
 //! - Chapront-Touzé & Chapront (1988). "ELP 2000-82B".
 //!   *A&A* 190, 342–352.
 
+use alloc::string::ToString;
+
 pub mod constants;
 pub mod refs;
 

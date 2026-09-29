@@ -7,12 +7,14 @@
 //! integrity, and parse operations. Individual modules re-export or wrap it as
 //! appropriate.
 
-use std::fmt;
+use alloc::string::String;
+use core::fmt;
 
 /// Error raised during an archive dataset operation.
 #[derive(Debug)]
 pub enum ArchiveError {
     /// File-system or OS I/O error.
+    #[cfg(feature = "std")]
     Io(std::io::Error),
     /// HTTP or network download failed.
     Download(String),
@@ -25,6 +27,7 @@ pub enum ArchiveError {
 impl fmt::Display for ArchiveError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            #[cfg(feature = "std")]
             Self::Io(err) => write!(f, "I/O error: {err}"),
             Self::Download(msg) => write!(f, "download error: {msg}"),
             Self::Integrity(msg) => write!(f, "integrity error: {msg}"),
@@ -33,15 +36,17 @@ impl fmt::Display for ArchiveError {
     }
 }
 
-impl std::error::Error for ArchiveError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl core::error::Error for ArchiveError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
+            #[cfg(feature = "std")]
             Self::Io(err) => Some(err),
             _ => None,
         }
     }
 }
 
+#[cfg(feature = "std")]
 impl From<std::io::Error> for ArchiveError {
     fn from(err: std::io::Error) -> Self {
         Self::Io(err)
@@ -51,7 +56,9 @@ impl From<std::io::Error> for ArchiveError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::string::ToString;
 
+    #[cfg(feature = "std")]
     #[test]
     fn display_io_error() {
         let err = ArchiveError::Io(std::io::Error::new(
@@ -81,6 +88,7 @@ mod tests {
         assert!(err.to_string().contains("timeout"));
     }
 
+    #[cfg(feature = "std")]
     #[test]
     fn from_io_error() {
         let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "access denied");

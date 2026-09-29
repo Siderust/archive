@@ -10,6 +10,8 @@
 //! Domain-specific provenance types (e.g. [`crate::time::TimeDataProvenance`])
 //! extend or complement this with additional per-format fields.
 
+use alloc::string::String;
+
 /// Lineage record for a single derived dataset or downloaded resource.
 ///
 /// # Example

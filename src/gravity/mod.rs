@@ -22,6 +22,8 @@
 //! (EGM2008). JGR: Solid Earth, 117, B04406.
 //! <https://doi.org/10.1029/2011JB008916>
 
+use alloc::string::ToString;
+
 pub mod refs;
 pub mod tables;
 

@@ -21,6 +21,8 @@
 //! scientific issues. JGR: Space Physics, 107(A12), 1468.
 //! <https://doi.org/10.1029/2002JA009430>
 
+use alloc::string::ToString;
+
 pub mod refs;
 pub mod tables;
 

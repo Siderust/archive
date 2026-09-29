@@ -34,6 +34,8 @@
 //! - IMCCE VSOP87 coefficient archive:
 //!   <https://www.imcce.fr/inpop/ephemerides/vsop87/>
 
+use alloc::string::ToString;
+
 pub mod refs;
 
 use qtty::{AstronomicalUnit, Radian};

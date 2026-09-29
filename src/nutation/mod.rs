@@ -17,6 +17,8 @@
 //! derived from SOFA `iauNut00a` / `iauNut00b`.  The raw provenance is
 //! recorded in `nutation/manifest.toml`.
 
+use alloc::string::ToString;
+
 pub mod refs;
 pub mod tables;
 

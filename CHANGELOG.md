@@ -6,6 +6,25 @@ The format is based on Keep a Changelog, and this project uses Semantic Versioni
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-09-29
+
+### Added
+- Genuine `no_std` + `alloc` support via `default-features = false`.
+- Explicit `std` feature (enabled by default); `fetch` now requires `std`.
+- CI coverage for `cargo check --no-default-features` and the
+  `thumbv7em-none-eabihf` target, including scientific-data feature combinations.
+
+### Changed
+- Dependencies (`qtty`, `chrono`, `serde`, `toml`, `sha2`) use
+  `default-features = false` with only the features this crate needs.
+- `ArchiveError`, `TimeDataError`, `ManifestError`, and `ChecksumMismatch`
+  implement `core::error::Error` (including `no_std`); I/O error variants and
+  `From<std::io::Error>` remain gated behind `std`, with `source()` preserved.
+- `chrono/clock` is enabled only by `fetch` (`Utc::now` is fetch-only); plain
+  `chrono/std` stays under `std`.
+- Default features are now `["std"]` (previously empty). Domain features remain
+  opt-in.
+
 ## [0.1.4] - 2026-06-21
 
 ### Changed

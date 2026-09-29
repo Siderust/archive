@@ -20,6 +20,8 @@
 //!
 //! * Meeus, J. (1998). Astronomical Algorithms (2nd ed.). Willmann-Bell. Ch. 37.
 
+use alloc::string::ToString;
+
 pub mod refs;
 
 /// Argument multipliers for Jupiter (j), Saturn (s), and Pluto (p) mean

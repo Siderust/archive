@@ -40,6 +40,13 @@ the Rust bindings needed to parse, verify, fetch, or bundle those datasets.
 siderust-archive = "0.1"
 ```
 
+For `no_std` + `alloc` (manifest, checksum, provenance, and scientific tables):
+
+```toml
+[dependencies]
+siderust-archive = { version = "0.1", default-features = false }
+```
+
 IERS time-data parsers and the bundled offline snapshot:
 
 ```toml
@@ -48,18 +55,18 @@ siderust-archive = { version = "0.1", features = ["time"] }
 ```
 
 Runtime download/cache support for current IERS/USNO time data and JPL kernel
-metadata:
+metadata (`fetch` requires `std`):
 
 ```toml
 [dependencies]
 siderust-archive = { version = "0.1", features = ["fetch"] }
 ```
 
-Planetary and geophysical tables are opt-in:
+Planetary and geophysical tables are opt-in and work with or without `std`:
 
 ```toml
 [dependencies]
-siderust-archive = { version = "0.1", features = ["vsop", "elp", "nutation"] }
+siderust-archive = { version = "0.1", default-features = false, features = ["vsop", "elp", "nutation"] }
 ```
 
 The crate declares its own `[workspace]`, so it is not absorbed into a parent
@@ -69,11 +76,12 @@ workspace when used through a local `path` dependency.
 
 | Feature | Description |
 |---------|-------------|
-| default | Manifest, checksum, provenance, and shared error APIs only. |
+| default | Enables `std`. |
+| `std` | Standard library support (filesystem, network, env, OS I/O errors). Absent ⇒ `no_std` + `alloc`. |
 | `time` | IERS UTC-TAI, Delta T, and EOP types/parsers; includes `bundled-time`. |
 | `bundled-time` | Compiled UTC-TAI and Delta T fallback snapshot. |
-| `fetch` | Runtime network download/cache support; implies `time` and `jpl`. |
-| `jpl` | JPL DE440/DE441 ephemeris metadata and cache manager. |
+| `fetch` | Runtime network download/cache support; requires `std`; implies `time` and `jpl`. |
+| `jpl` | JPL DE440/DE441 ephemeris metadata; download/cache needs `fetch`. |
 | `vsop` | VSOP87A/E planetary theory tables. |
 | `elp` | ELP2000-82B lunar theory tables. |
 | `nutation` | IAU 2000A/2000B nutation coefficient tables. |

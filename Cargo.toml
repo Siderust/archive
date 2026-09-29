@@ -1,6 +1,6 @@
 [package]
 name = "siderust-archive"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 authors = ["Vallés Puig, Ramon <vallespuigramon@gmail.com>"]
 license = "BSD-3-Clause"
@@ -9,8 +9,8 @@ repository = "https://github.com/Siderust/archive"
 homepage = "https://github.com/Siderust/archive"
 documentation = "https://docs.rs/siderust-archive"
 readme = "README.md"
-keywords = ["astronomy", "ephemeris", "iers", "spice", "siderust"]
-categories = ["science", "aerospace", "parser-implementations"]
+keywords = ["astronomy", "ephemeris", "iers", "spice", "siderust", "no-std"]
+categories = ["science", "aerospace", "parser-implementations", "no-std"]
 
 # The archive is its own repository; this crate must stand alone and not be
 # absorbed into a parent repository's cargo workspace.
@@ -18,7 +18,15 @@ categories = ["science", "aerospace", "parser-implementations"]
 members = [".", "tools/validate"]
 
 [features]
-default = []
+default = ["std"]
+# Enable the Rust standard library (filesystem, network, env, OS I/O errors).
+# Without `std`, the crate builds as `no_std` + `alloc`.
+std = [
+    "qtty/std",
+    "chrono/std",
+    "serde/std",
+    "toml/std",
+]
 # VSOP87A/E planetary theory tables (build-time generated).
 vsop = []
 # ELP2000-82B lunar theory tables (build-time generated).
@@ -27,10 +35,11 @@ elp = []
 time = ["bundled-time"]
 # Compiled UTC-TAI / ΔT fallback snapshot (no network).
 bundled-time = []
-# JPL planetary ephemeris download/cache (DE440/DE441).
+# JPL planetary ephemeris metadata (DE440/DE441). Download/cache needs `fetch`.
 jpl = []
-# Runtime network download for IERS and JPL datasets. Implies `time` and `jpl`.
-fetch = ["time", "jpl", "dep:ureq"]
+# Runtime network download for IERS and JPL datasets. Requires `std`.
+# Enables chrono's `clock` feature only here (`Utc::now` is fetch-only).
+fetch = ["std", "time", "jpl", "dep:ureq", "chrono/clock"]
 # IAU 2000A/2000B nutation coefficient tables (MHB2000).
 nutation = []
 # EGM2008 geopotential coefficients (low-degree subset).
@@ -47,17 +56,17 @@ lagrange = []
 pluto = []
 
 [dependencies]
-qtty = { version = "0.8", features = ["astro", "density"] }
-chrono = { version = "0.4", default-features = false, features = ["clock"] }
-serde = { version = "1", features = ["derive"] }
-toml = "1.1"
-sha2 = "0.11"
+qtty = { version = "0.8", default-features = false, features = ["astro", "density", "alloc"] }
+chrono = { version = "0.4", default-features = false, features = ["alloc"] }
+serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
+toml = { version = "1.1", default-features = false, features = ["parse", "serde", "display"] }
+sha2 = { version = "0.11", default-features = false }
 ureq = { version = "3", optional = true }
 
 [build-dependencies]
 anyhow = "1"
 regex = "1"
-sha2 = "0.11"
+sha2 = { version = "0.11", default-features = false, features = ["alloc"] }
 walkdir = "2"
 
 [[bin]]

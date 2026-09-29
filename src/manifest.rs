@@ -11,6 +11,14 @@
 //!
 //! All archive metadata is TOML; JSON is not used anywhere in the archive.
 //! See `schema/archive-manifest-v1.md` for the authoritative contract.
+//!
+//! Manifest model types and TOML parsing work under `no_std` + `alloc` via the
+//! `toml` crate configured without its `std` feature.
+
+use alloc::format;
+use alloc::string::String;
+use alloc::vec::Vec;
+use core::fmt;
 
 use serde::Deserialize;
 
@@ -23,8 +31,8 @@ pub enum ManifestError {
     UnsupportedSchema(u32),
 }
 
-impl std::fmt::Display for ManifestError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for ManifestError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Toml(err) => write!(f, "manifest parse error: {err}"),
             Self::UnsupportedSchema(v) => {
@@ -34,8 +42,8 @@ impl std::fmt::Display for ManifestError {
     }
 }
 
-impl std::error::Error for ManifestError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl core::error::Error for ManifestError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             Self::Toml(err) => Some(err),
             _ => None,

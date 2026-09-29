@@ -9,6 +9,10 @@
 //! use `siderust::checksum` instead — that module provides a `const fn`
 //! SHA-256 kernel and is not interchangeable with this runtime API.
 
+use alloc::format;
+use alloc::string::{String, ToString};
+use core::fmt;
+
 /// Compute the lowercase hex SHA-256 digest of `bytes`.
 ///
 /// ```
@@ -42,8 +46,8 @@ pub struct ChecksumMismatch {
     pub actual: String,
 }
 
-impl std::fmt::Display for ChecksumMismatch {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for ChecksumMismatch {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{} SHA-256 mismatch: expected {}, got {}",
@@ -52,7 +56,7 @@ impl std::fmt::Display for ChecksumMismatch {
     }
 }
 
-impl std::error::Error for ChecksumMismatch {}
+impl core::error::Error for ChecksumMismatch {}
 
 /// Verify that `bytes` hash to the `expected` lowercase-hex SHA-256 digest.
 pub fn verify_sha256(label: &str, bytes: &[u8], expected: &str) -> Result<(), ChecksumMismatch> {
