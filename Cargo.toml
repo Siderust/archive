@@ -9,7 +9,7 @@ repository = "https://github.com/Siderust/archive"
 homepage = "https://github.com/Siderust/archive"
 documentation = "https://docs.rs/siderust-archive"
 readme = "README.md"
-keywords = ["astronomy", "ephemeris", "iers", "spice", "siderust", "no-std"]
+keywords = ["astronomy", "ephemeris", "iers", "spice", "no-std"]
 categories = ["science", "aerospace", "parser-implementations", "no-std"]
 
 # The archive is its own repository; this crate must stand alone and not be
