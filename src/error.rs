@@ -36,10 +36,10 @@ impl fmt::Display for ArchiveError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for ArchiveError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl core::error::Error for ArchiveError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
+            #[cfg(feature = "std")]
             Self::Io(err) => Some(err),
             _ => None,
         }

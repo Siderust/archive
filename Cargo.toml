@@ -23,7 +23,6 @@ default = ["std"]
 # Without `std`, the crate builds as `no_std` + `alloc`.
 std = [
     "qtty/std",
-    "chrono/clock",
     "chrono/std",
     "serde/std",
     "toml/std",
@@ -39,7 +38,8 @@ bundled-time = []
 # JPL planetary ephemeris metadata (DE440/DE441). Download/cache needs `fetch`.
 jpl = []
 # Runtime network download for IERS and JPL datasets. Requires `std`.
-fetch = ["std", "time", "jpl", "dep:ureq"]
+# Enables chrono's `clock` feature only here (`Utc::now` is fetch-only).
+fetch = ["std", "time", "jpl", "dep:ureq", "chrono/clock"]
 # IAU 2000A/2000B nutation coefficient tables (MHB2000).
 nutation = []
 # EGM2008 geopotential coefficients (low-degree subset).

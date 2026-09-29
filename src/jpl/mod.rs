@@ -1,14 +1,32 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Copyright (C) 2026 Vallés Puig, Ramon
 
-//! JPL DE-series ephemeris download and cache manager.
+//! JPL DE-series ephemeris metadata and optional runtime download/cache.
 //!
-//! [`DatasetManager`] resolves a local cache directory and provides methods to
-//! download, verify, and access JPL BSP kernel files (DE440, DE441).
+//! Enabling the `jpl` feature alone exposes **metadata only**: dataset IDs,
+//! download URLs, checksums, and size hints via [`refs`] and [`constants`].
+//! That subset is `no_std`-compatible.
 //!
-//! # Example
+//! Runtime filesystem cache and network download live behind the `fetch`
+//! feature (which also requires `std`). Use [`DatasetManager`] only with
+//! `features = ["fetch"]`.
+//!
+//! # Metadata example (`jpl`)
+//!
+//! ```rust
+//! # #[cfg(feature = "jpl")]
+//! use siderust_archive::jpl::refs::JplDatasetId;
+//!
+//! # #[cfg(feature = "jpl")]
+//! let meta = JplDatasetId::De440.meta();
+//! # #[cfg(feature = "jpl")]
+//! assert!(meta.url.contains("de440.bsp"));
+//! ```
+//!
+//! # Download/cache example (`fetch`)
 //!
 //! ```rust,ignore
+//! // Requires: siderust-archive = { version = "0.1", features = ["fetch"] }
 //! use siderust_archive::jpl::{DatasetManager, refs::JplDatasetId};
 //!
 //! let dm = DatasetManager::new()?;
@@ -37,6 +55,9 @@ use std::path::{Path, PathBuf};
 
 /// Manages a local data cache for JPL BSP kernel downloads.
 ///
+/// Available only with the `fetch` feature (implies `std`). The plain `jpl`
+/// feature does not include this type — it provides metadata via [`refs`] only.
+///
 /// Calling [`Self::ensure`] or [`Self::download`] will download the kernel
 /// from the JPL NAIF server if it is not already cached locally.
 ///
@@ -46,6 +67,7 @@ use std::path::{Path, PathBuf};
 /// # Example
 ///
 /// ```rust,ignore
+/// // Requires features = ["fetch"]
 /// use siderust_archive::jpl::{DatasetManager, refs::JplDatasetId};
 ///
 /// let dm = DatasetManager::new()?;

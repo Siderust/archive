@@ -56,8 +56,7 @@ impl fmt::Display for ChecksumMismatch {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for ChecksumMismatch {}
+impl core::error::Error for ChecksumMismatch {}
 
 /// Verify that `bytes` hash to the `expected` lowercase-hex SHA-256 digest.
 pub fn verify_sha256(label: &str, bytes: &[u8], expected: &str) -> Result<(), ChecksumMismatch> {

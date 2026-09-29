@@ -217,10 +217,10 @@ impl fmt::Display for TimeDataError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for TimeDataError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl core::error::Error for TimeDataError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
+            #[cfg(feature = "std")]
             Self::Io(err) => Some(err),
             _ => None,
         }
@@ -1254,16 +1254,15 @@ mod tests {
     #[cfg(feature = "std")]
     #[test]
     fn time_data_error_source_io_is_some() {
-        use std::error::Error;
+        use core::error::Error;
         let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied");
         let err = TimeDataError::Io(io_err);
         assert!(err.source().is_some());
     }
 
-    #[cfg(feature = "std")]
     #[test]
     fn time_data_error_source_non_io_is_none() {
-        use std::error::Error;
+        use core::error::Error;
         assert!(TimeDataError::Download("x".into()).source().is_none());
         assert!(TimeDataError::Parse("x".into()).source().is_none());
         assert!(TimeDataError::Integrity("x".into()).source().is_none());

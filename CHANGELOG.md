@@ -18,8 +18,10 @@ The format is based on Keep a Changelog, and this project uses Semantic Versioni
 - Dependencies (`qtty`, `chrono`, `serde`, `toml`, `sha2`) use
   `default-features = false` with only the features this crate needs.
 - `ArchiveError`, `TimeDataError`, `ManifestError`, and `ChecksumMismatch`
-  implement `std::error::Error` only when `std` is enabled; I/O error variants
-  are gated behind `std`.
+  implement `core::error::Error` (including `no_std`); I/O error variants and
+  `From<std::io::Error>` remain gated behind `std`, with `source()` preserved.
+- `chrono/clock` is enabled only by `fetch` (`Utc::now` is fetch-only); plain
+  `chrono/std` stays under `std`.
 - Default features are now `["std"]` (previously empty). Domain features remain
   opt-in.
 

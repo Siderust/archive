@@ -42,9 +42,8 @@ impl fmt::Display for ManifestError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for ManifestError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl core::error::Error for ManifestError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             Self::Toml(err) => Some(err),
             _ => None,
