@@ -6,6 +6,8 @@ The format is based on Keep a Changelog, and this project uses Semantic Versioni
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-09-29
+
 ### Added
 - Genuine `no_std` + `alloc` support via `default-features = false`.
 - Explicit `std` feature (enabled by default); `fetch` now requires `std`.
