@@ -12,6 +12,8 @@ pub use snapshot::{
     UTC_TAI_SEGMENTS,
 };
 
+use alloc::vec::Vec;
+
 use super::{TimeDataBundle, TimeDataProvenance, UtcTaiSegment};
 use qtty::Second;
 

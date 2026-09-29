@@ -11,9 +11,13 @@
 //! provenance record. With the `bundled-time` feature, a compiled UTC-TAI / ΔT
 //! fallback snapshot is also available via [`bundled_time_data`].
 
+use alloc::format;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
+use core::fmt;
+
 use chrono::{DateTime, NaiveDate, Utc};
-use qtty::{Arcsecond, MilliArcsecond, Millisecond, Second};
-use std::fmt;
+use qtty::{Arcsecond, MilliArcsecond, Millisecond, Real, Second};
 
 pub mod refs;
 
@@ -194,6 +198,7 @@ impl TimeDataBundle {
 
 #[derive(Debug)]
 pub enum TimeDataError {
+    #[cfg(feature = "std")]
     Io(std::io::Error),
     Download(String),
     Parse(String),
@@ -203,6 +208,7 @@ pub enum TimeDataError {
 impl fmt::Display for TimeDataError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            #[cfg(feature = "std")]
             Self::Io(err) => write!(f, "I/O error: {err}"),
             Self::Download(msg) => write!(f, "download error: {msg}"),
             Self::Parse(msg) => write!(f, "parse error: {msg}"),
@@ -211,6 +217,7 @@ impl fmt::Display for TimeDataError {
     }
 }
 
+#[cfg(feature = "std")]
 impl std::error::Error for TimeDataError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
@@ -220,6 +227,7 @@ impl std::error::Error for TimeDataError {
     }
 }
 
+#[cfg(feature = "std")]
 impl From<std::io::Error> for TimeDataError {
     fn from(value: std::io::Error) -> Self {
         Self::Io(value)
@@ -862,16 +870,16 @@ pub fn parse_delta_t_observed(text: &str) -> Result<Vec<(f64, f64)>, String> {
         }
         let year = parts[0]
             .parse::<i32>()
-            .map_err(|err: std::num::ParseIntError| err.to_string())?;
+            .map_err(|err: core::num::ParseIntError| err.to_string())?;
         let month = parts[1]
             .parse::<u32>()
-            .map_err(|err: std::num::ParseIntError| err.to_string())?;
+            .map_err(|err: core::num::ParseIntError| err.to_string())?;
         let day = parts[2]
             .parse::<u32>()
-            .map_err(|err: std::num::ParseIntError| err.to_string())?;
+            .map_err(|err: core::num::ParseIntError| err.to_string())?;
         let delta_t = parts[3]
             .parse::<f64>()
-            .map_err(|err: std::num::ParseFloatError| err.to_string())?;
+            .map_err(|err: core::num::ParseFloatError| err.to_string())?;
         let date = NaiveDate::from_ymd_opt(year, month, day)
             .ok_or_else(|| format!("invalid date in observed Delta T: {raw_line:?}"))?;
         points.push((mjd_from_date(date) as f64, delta_t));
@@ -957,7 +965,7 @@ pub fn parse_eop_finals(text: &str) -> Result<Vec<EopPoint>, String> {
         let Some(mjd_f) = col(line, 8, 15).and_then(parse_f64) else {
             continue;
         };
-        let mjd = mjd_f.round() as i32;
+        let mjd = Real::round(mjd_f) as i32;
         let Some(ut1_flag) = col(line, 58, 58).and_then(parse_flag) else {
             continue;
         };
@@ -1056,7 +1064,7 @@ mod tests {
         dx_milliarcsec: Option<f64>,
         dy_milliarcsec: Option<f64>,
     ) -> String {
-        let mut line = vec![b' '; 125];
+        let mut line = alloc::vec![b' '; 125];
         set_field(&mut line, 8, 15, &format!("{:8.2}", mjd as f64));
         line[16] = b'I';
         if let Some(value) = pm_xp_arcsec {
@@ -1120,7 +1128,7 @@ mod tests {
              60341 2024.2 69.5000\n",
         )
         .unwrap();
-        assert_eq!(points, vec![(60_310.0, 69.4), (60_341.0, 69.5)]);
+        assert_eq!(points, alloc::vec![(60_310.0, 69.4), (60_341.0, 69.5)]);
     }
 
     #[test]
@@ -1213,6 +1221,7 @@ mod tests {
 
     // ── TimeDataError display, source and From ───────────────────────────────
 
+    #[cfg(feature = "std")]
     #[test]
     fn time_data_error_display_io() {
         let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
@@ -1242,6 +1251,7 @@ mod tests {
         assert!(err.to_string().contains("hash mismatch"));
     }
 
+    #[cfg(feature = "std")]
     #[test]
     fn time_data_error_source_io_is_some() {
         use std::error::Error;
@@ -1250,6 +1260,7 @@ mod tests {
         assert!(err.source().is_some());
     }
 
+    #[cfg(feature = "std")]
     #[test]
     fn time_data_error_source_non_io_is_none() {
         use std::error::Error;
@@ -1258,6 +1269,7 @@ mod tests {
         assert!(TimeDataError::Integrity("x".into()).source().is_none());
     }
 
+    #[cfg(feature = "std")]
     #[test]
     fn time_data_error_from_io_error() {
         let io_err = std::io::Error::new(std::io::ErrorKind::BrokenPipe, "pipe");

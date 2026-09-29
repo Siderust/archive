@@ -33,8 +33,8 @@ impl JplDatasetId {
     }
 }
 
-impl std::fmt::Display for JplDatasetId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for JplDatasetId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(self.as_str())
     }
 }
