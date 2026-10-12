@@ -67,8 +67,8 @@ bytes  = 2235
 [[files]]
 path   = "raw/deltat.data"
 format = "usno-delta-t-observed"
-sha256 = "9f88e53593495a09219fe956eeadea0fa9f8e3e02c310b2aa2b70852383cdf6f"
-bytes  = 13419
+sha256 = "7396fcfdad33856b5242f288887678d75f3803494fa79394bc02f37eb99efc1e"
+bytes  = 13545
 
 [[files]]
 path   = "raw/deltat.preds"
@@ -79,12 +79,12 @@ bytes  = 1483
 [[files]]
 path   = "raw/finals2000A.all"
 format = "iers-finals2000a"
-sha256 = "9fbc14ae5e71de96cc1e6b43b54a547acc80c7a6ce910c0209ad6230ff3d30cd"
+sha256 = "0baf00f67a39ab362a3e4f07d2a1f084842178523f56bcf5a861e7ac084d411a"
 bytes  = 3769212
 
 [[files]]
 path   = "raw/time_data.provenance.toml"
 format = "siderust-time-provenance-toml"
-sha256 = "5ac050a64bb0f28520257f30c36eed063a905628cf5438ee077bd3889bd9c871"
+sha256 = "8762350f7e05943b4a0bbe95caffbd44357650fefd23616a76b2a94bc22654d5"
 bytes  = 396
 # END GENERATED FILE ENTRIES — update-time-data
