@@ -3,7 +3,7 @@
 
 //! Build script for `siderust-archive`.
 //!
-//! When the `vsop`, `elp`, `atmosphere`, `gravity`, `pluto`, or `nutation`
+//! When the `vsop`, `vsop-compact`, `elp`, `atmosphere`, `gravity`, `pluto`, or `nutation`
 //! features are enabled, this script regenerates the Rust bindings for the
 //! respective coefficient tables into `OUT_DIR`.  Each module then exposes
 //! the generated constants via `include!` in its sub-module.
@@ -11,7 +11,7 @@
 use std::env;
 use std::path::PathBuf;
 
-#[cfg(feature = "vsop")]
+#[cfg(any(feature = "vsop", feature = "vsop-compact"))]
 #[path = "src/vsop/pipeline.rs"]
 mod vsop_pipeline;
 
@@ -43,10 +43,11 @@ fn main() {
     #[allow(unused_variables)]
     let archive_root = &manifest_dir;
 
-    #[cfg(feature = "vsop")]
+    #[cfg(any(feature = "vsop", feature = "vsop-compact"))]
     {
         let vsop_raw = archive_root.join("src").join("vsop").join("raw");
         println!("cargo:rerun-if-changed={}", vsop_raw.display());
+        println!("cargo:rerun-if-env-changed=SIDERUST_VSOP87_SHA256");
         vsop_pipeline::run_regen(&vsop_raw, &out_dir).expect("VSOP87 table generation failed");
     }
 

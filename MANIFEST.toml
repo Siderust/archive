@@ -15,7 +15,7 @@ archive_version = "0.1.0"
 id        = "vsop87"
 manifest  = "src/vsop/manifest.toml"
 kind      = "planetary-theory"
-status    = "pending-migration"
+status    = "active"
 
 [[family]]
 id        = "nutation"

@@ -25,6 +25,7 @@
 //! | `default`      | Enables `std`. |
 //! | `std`          | Standard library (I/O, env, OS errors). Absent ⇒ `no_std` + `alloc`. |
 //! | `vsop`         | VSOP87A/E planetary theory tables (build-time generated via `build.rs`). |
+//! | `vsop-compact` | Compact embedded VSOP87E positions for 2020–2050. |
 //! | `elp`          | ELP2000-82B lunar theory tables (build-time generated via `build.rs`). |
 //! | `time`         | IERS time-scale data: UTC-TAI, ΔT, EOP — types, parsers, bundled snapshot. |
 //! | `bundled-time` | Compiled UTC-TAI / ΔT fallback snapshot (offline, no network). Implied by `time`. |
@@ -89,6 +90,9 @@ pub mod provenance;
 
 #[cfg(feature = "vsop")]
 pub mod vsop;
+
+#[cfg(feature = "vsop-compact")]
+pub mod vsop_compact;
 
 #[cfg(feature = "elp")]
 pub mod elp;

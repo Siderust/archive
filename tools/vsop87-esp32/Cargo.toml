@@ -1,0 +1,19 @@
+[package]
+name = "vsop87-esp32"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[features]
+default = ["vsop-compact"]
+vsop = ["siderust-archive/vsop", "dep:libm"]
+vsop-compact = ["siderust-archive/vsop-compact"]
+
+[dependencies]
+siderust-archive = { path = "../..", default-features = false }
+esp-hal = { version = "=1.2.2", features = ["esp32"] }
+esp-bootloader-esp-idf = { version = "=0.6.0", features = ["esp32"] }
+esp-println = { version = "=0.18.0", default-features = false, features = ["esp32", "uart"] }
+libm = { version = "0.2", optional = true }

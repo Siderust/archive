@@ -12,16 +12,9 @@
 //! | [`codegen`] | Turn the map into Rust source code (`String`). |
 //! | [`io`]      | Write each `(version → source)` pair into `OUT_DIR`. |
 //!
-//! The **only** symbol meant to be used externally is [`run`]; everything else
-//! stays private to keep the build script’s surface minimal.
+//! The build script calls `run_regen`. The compact profile uses the same
+//! collector and emits its selected VSOP87E terms through `compact_codegen`.
 //!
-//! ```rust
-//! #[path = "scripts/vsop87/mod.rs"]
-//! mod vsop87_build;
-//! vsop87_build::run("dataset").unwrap();
-//! ```
-//!
-//! ---
 //! ## Data model in memory
 //!
 //! The VSOP87 coefficients form a 4‑level hierarchy:
@@ -49,10 +42,15 @@ use std::{collections::BTreeMap, env, fs, path::Path, path::PathBuf};
 
 use anyhow::Context;
 
+#[cfg(feature = "vsop")]
 #[path = "codegen.rs"]
 mod codegen;
 #[path = "collect.rs"]
 mod collect;
+#[cfg(feature = "vsop-compact")]
+#[path = "compact_codegen.rs"]
+mod compact_codegen;
+#[cfg(feature = "vsop")]
 #[path = "io.rs"]
 mod io;
 
@@ -158,6 +156,7 @@ type VersionMap = BTreeMap<char, PlanetMap>;
 ///
 /// # Errors
 /// Returns any I/O or parsing error wrapped in `anyhow::Error`.
+#[cfg(feature = "vsop")]
 #[allow(dead_code)]
 pub(crate) fn run(data_dir: &Path) -> anyhow::Result<()> {
     let out_dir = PathBuf::from(
@@ -173,47 +172,61 @@ pub(crate) fn run(data_dir: &Path) -> anyhow::Result<()> {
         return write_empty_stubs(&out_dir);
     }
 
-    let versions = collect::collect_terms(data_dir)?;
+    let versions = collect::collect_terms(data_dir, true)?;
     let modules = codegen::generate_modules(&versions)?;
     io::write_modules(&modules, &out_dir)?;
 
     Ok(())
 }
 
-/// Like [`run`] but writes generated files to `gen_dir` instead of `OUT_DIR`.
+/// Writes the requested tables to `gen_dir`.
 ///
 /// Used by `build.rs` to emit Rust coefficient tables into `OUT_DIR`.
 /// Verifies the input dataset SHA-256 against the `SIDERUST_VSOP87_SHA256`
 /// environment variable when set, and embeds the SHA-256 + retrieval
 /// timestamp as a comment header in every emitted `vsop87X.rs` file.
 ///
-/// If the raw data directory is absent or empty, writes empty stub files and
-/// emits a `cargo:warning`. No network access is performed; download the raw
-/// VSOP87 files into `src/vsop/raw/` first.
+/// Compact generation requires the checked-in VSOP87E inputs and emits a
+/// timestamp-free table. Full-only generation retains its empty-stub fallback.
 pub(crate) fn run_regen(data_dir: &Path, gen_dir: &Path) -> anyhow::Result<()> {
     if !data_dir.exists() || is_empty_dir(data_dir)? {
-        println!(
-            "cargo:warning=VSOP87: raw data absent at {}; writing empty stubs. \
-             Place VSOP87 data files in src/vsop/raw/ to enable table generation.",
-            data_dir.display()
-        );
-        return write_empty_stubs(gen_dir);
+        #[cfg(feature = "vsop-compact")]
+        anyhow::bail!("Compact VSOP87: raw VSOP87E files absent from {data_dir:?}");
+        #[cfg(not(feature = "vsop-compact"))]
+        {
+            println!(
+                "cargo:warning=VSOP87: raw data absent at {}; writing empty stubs. \
+                 Place VSOP87 data files in src/vsop/raw/ to enable table generation.",
+                data_dir.display()
+            );
+            return write_empty_stubs(gen_dir);
+        }
     }
 
     let (sha, bytes) = dataset_sha256(data_dir)?;
     eprintln!("VSOP87: dataset SHA-256 = {sha} ({bytes} bytes across all files)");
     check_pinned_sha256(&sha, "SIDERUST_VSOP87_SHA256")?;
+    let versions = collect::collect_terms(data_dir, cfg!(feature = "vsop"))?;
 
-    let prov = codegen::DatasetProvenance {
-        source_url: "https://ftp.imcce.fr/pub/ephem/planets/vsop87/".to_string(),
-        sha256_hex: sha,
-        retrieved_at: iso8601_now(),
-        byte_count: bytes,
-    };
+    #[cfg(feature = "vsop-compact")]
+    {
+        let planets = versions.get(&'E').context("missing VSOP87E terms")?;
+        let code = compact_codegen::generate(planets, &sha)?;
+        fs::write(gen_dir.join("vsop87e_compact.rs"), code)
+            .context("write compact VSOP87E tables")?;
+    }
 
-    let versions = collect::collect_terms(data_dir)?;
-    let modules = codegen::generate_modules_with_provenance(&versions, &prov)?;
-    io::write_modules(&modules, gen_dir)?;
+    #[cfg(feature = "vsop")]
+    {
+        let prov = codegen::DatasetProvenance {
+            source_url: "https://ftp.imcce.fr/pub/ephem/planets/vsop87/".to_string(),
+            sha256_hex: sha,
+            retrieved_at: iso8601_now(),
+            byte_count: bytes,
+        };
+        let modules = codegen::generate_modules_with_provenance(&versions, &prov)?;
+        io::write_modules(&modules, gen_dir)?;
+    }
     Ok(())
 }
 
@@ -227,6 +240,7 @@ fn is_empty_dir(dir: &Path) -> anyhow::Result<bool> {
 
 /// Write empty stub files for all modules that `include!` expects to find in
 /// `OUT_DIR`. An empty file is valid Rust and produces an empty module body.
+#[cfg(feature = "vsop")]
 fn write_empty_stubs(gen_dir: &Path) -> anyhow::Result<()> {
     fs::create_dir_all(gen_dir).with_context(|| format!("create-dir {gen_dir:?}"))?;
     for name in ["vsop87a.rs", "vsop87e.rs"] {
@@ -239,6 +253,7 @@ fn write_empty_stubs(gen_dir: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "vsop")]
 fn iso8601_now() -> String {
     // Same lightweight formatter as in scripts/iers — duplicated here to
     // avoid threading an extra module through `#[path]` includes.

@@ -135,9 +135,12 @@ const VSOP87E_REQUIRED: &[&str] = &[
 /// Called only when the raw directory is non-empty. Returns an error if any
 /// expected file is missing so that a partial dataset is caught early rather
 /// than silently generating incomplete Rust tables.
-fn validate_vsop_inventory(data_dir: &Path) -> anyhow::Result<()> {
+fn validate_vsop_inventory(data_dir: &Path, full: bool) -> anyhow::Result<()> {
     let mut missing = Vec::new();
-    for name in VSOP87A_REQUIRED.iter().chain(VSOP87E_REQUIRED.iter()) {
+    for name in VSOP87E_REQUIRED
+        .iter()
+        .chain(VSOP87A_REQUIRED.iter().filter(|_| full))
+    {
         if !data_dir.join(name).exists() {
             missing.push(*name);
         }
@@ -145,7 +148,7 @@ fn validate_vsop_inventory(data_dir: &Path) -> anyhow::Result<()> {
     if !missing.is_empty() {
         anyhow::bail!(
             "VSOP87: incomplete raw dataset in {:?}. Missing files: {:?}. \
-             Place all required VSOP87A and VSOP87E files in the raw directory.",
+             Restore the required VSOP87 files in the raw directory.",
             data_dir,
             missing
         );
@@ -160,14 +163,14 @@ fn validate_vsop_inventory(data_dir: &Path) -> anyhow::Result<()> {
 ///   [`HEADER_REGEX`] and collects the following `count` data lines.
 /// * Converts each data line into a [`Term`] via [`sk_to_term`].
 /// * Inserts the term at `versions[version][planet][coord][T_power]`.
-pub(crate) fn collect_terms(data_dir: &Path) -> anyhow::Result<VersionMap> {
+pub(crate) fn collect_terms(data_dir: &Path, full: bool) -> anyhow::Result<VersionMap> {
     // --- Compile regexes ---------------------------------------------------
     let file_re = Regex::new(REGEX_FILE)?;
     let header_re = Regex::new(HEADER_REGEX)?;
 
     // Validate the inventory before parsing so that a partial dataset fails
     // clearly rather than silently producing incomplete Rust tables.
-    validate_vsop_inventory(data_dir)?;
+    validate_vsop_inventory(data_dir, full)?;
 
     let mut versions: VersionMap = BTreeMap::new();
 
@@ -183,6 +186,10 @@ pub(crate) fn collect_terms(data_dir: &Path) -> anyhow::Result<VersionMap> {
             None => continue, // not a VSOP87 file → skip
         };
         let v_char = caps[1].chars().next().unwrap(); // e.g. 'A', 'E'
+
+        if !full && v_char != 'E' {
+            continue;
+        }
 
         // --- Open current file --------------------------------------------
         let file = File::open(path).with_context(|| format!("Could not open {path:?}"))?;

@@ -82,7 +82,8 @@ workspace when used through a local `path` dependency.
 | `bundled-time` | Compiled UTC-TAI and Delta T fallback snapshot. |
 | `fetch` | Runtime network download/cache support; requires `std`; implies `time` and `jpl`. |
 | `jpl` | JPL DE440/DE441 ephemeris metadata; download/cache needs `fetch`. |
-| `vsop` | VSOP87A/E planetary theory tables. |
+| `vsop` | Full VSOP87A/E planetary theory tables. |
+| `vsop-compact` | Compact VSOP87E positions for the Sun and eight planets, 2020–2050. |
 | `elp` | ELP2000-82B lunar theory tables. |
 | `nutation` | IAU 2000A/2000B nutation coefficient tables. |
 | `gravity` | Low-degree EGM2008 geopotential coefficients. |
@@ -91,6 +92,25 @@ workspace when used through a local `path` dependency.
 | `constants` | SPICE-style body constants placeholder. |
 | `lagrange` | Sun-Earth Lagrange Chebyshev kernel references. |
 | `pluto` | Meeus 1998 abbreviated Pluto series. |
+
+## Compact embedded planetary positions
+
+```toml
+siderust-archive = { version = "0.1.7", default-features = false, features = ["vsop-compact"] }
+```
+
+`siderust_archive::vsop_compact` provides a checked function per body, such as
+`try_mars(jd_tdb)`. It returns `CompactEphemerisError` for non-finite dates or
+dates outside `[FIRST_JD_TDB, END_JD_TDB)` (2020-01-01 through 2050-12-31 TDB).
+The direct functions, such as `mars(jd_tdb)`, evaluate unchecked.
+
+On success, the position is a geometric barycentric `[X, Y, Z]` in AU in the native
+VSOP87 dynamical ecliptic and equinox of J2000.0. Subtract the Earth vector at
+the same epoch for an Earth-relative vector. The compiled coefficients require
+no runtime I/O or allocation.
+
+The [validation report](reports/compact-vsop87.md) includes accuracy, linked
+size, performance, source checksums, and reproduction commands.
 
 ## Archive Layout
 

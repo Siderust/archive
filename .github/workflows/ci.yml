@@ -50,6 +50,9 @@ jobs:
         run: >
           cargo check --target thumbv7em-none-eabihf --no-default-features
           --features vsop,elp,nutation,gravity,atmosphere,frames,constants,lagrange,pluto,time,jpl,bundled-time
+      - name: Check compact VSOP87E alone on a bare-metal target
+        run: cargo check --target thumbv7em-none-eabihf --no-default-features --features vsop-compact
+      - run: cargo test --no-default-features --features vsop-compact
       - run: cargo test --no-default-features
       - run: cargo test --features time
       - run: cargo test --features time,fetch
