@@ -55,9 +55,8 @@ pub struct PlanetPert {
 
 /// Generated ELP2000-82B coefficient tables.
 ///
-/// Arrays within this module are produced by the build pipeline
-/// ([`pipeline`]) from the raw CDS data files.  Each static is named
-/// `ELP{N}` where `N` is 1–36.
+/// Arrays within this module are generated at build time from the raw CDS data
+/// files. Each static is named `ELP{N}` where `N` is 1–36.
 #[allow(clippy::all, unreachable_pub, dead_code)]
 pub mod elp_data {
     include!(concat!(env!("OUT_DIR"), "/elp_data.rs"));

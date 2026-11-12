@@ -178,14 +178,20 @@ impl TimeDataBundle {
         eop_finals: &str,
         provenance: TimeDataProvenance,
     ) -> Result<Self, TimeDataError> {
+        let source_error = |url| move |err| TimeDataError::Parse(format!("{url}: {err}"));
         let utc_tai_segments =
-            parse_utc_tai_segments(utc_tai_history).map_err(TimeDataError::Parse)?;
-        let observed = parse_delta_t_observed(delta_t_observed).map_err(TimeDataError::Parse)?;
-        let predicted =
-            parse_delta_t_predictions(delta_t_predictions).map_err(TimeDataError::Parse)?;
+            parse_utc_tai_segments(utc_tai_history).map_err(source_error(UTC_TAI_HISTORY_URL))?;
+        let observed =
+            parse_delta_t_observed(delta_t_observed).map_err(source_error(DELTA_T_OBSERVED_URL))?;
+        let predicted = parse_delta_t_predictions(delta_t_predictions)
+            .map_err(source_error(DELTA_T_PREDICTIONS_URL))?;
         let (modern_delta_t_points, modern_delta_t_observed_end_mjd) =
-            build_modern_delta_t_points(&observed, &predicted).map_err(TimeDataError::Parse)?;
-        let eop_points = parse_eop_finals(eop_finals).map_err(TimeDataError::Parse)?;
+            build_modern_delta_t_points(&observed, &predicted).map_err(|err| {
+                TimeDataError::Parse(format!(
+                    "{DELTA_T_OBSERVED_URL} / {DELTA_T_PREDICTIONS_URL}: {err}"
+                ))
+            })?;
+        let eop_points = parse_eop_finals(eop_finals).map_err(source_error(EOP_FINALS_URL))?;
         Ok(Self::new(
             utc_tai_segments,
             modern_delta_t_points,
@@ -239,9 +245,8 @@ mod fetch_support {
     use super::*;
     use sha2::{Digest, Sha256};
     use std::fs;
-    use std::io::Read;
     use std::path::{Path, PathBuf};
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     const DEFAULT_SUBDIR: &str = ".tempoch/data";
     const BUNDLE_DIR_NAME: &str = "bundle";
@@ -444,29 +449,80 @@ mod fetch_support {
 
     fn fetch_text(url: &str) -> Result<DownloadedText, TimeDataError> {
         let agent = ureq::config::Config::builder()
-            .timeout_global(Some(std::time::Duration::from_secs(FETCH_TIMEOUT_SECS)))
+            .timeout_global(Some(Duration::from_secs(FETCH_TIMEOUT_SECS)))
             .build()
             .new_agent();
-        let response = agent
-            .get(url)
-            .header("User-Agent", "tempoch-runtime-data/1.0")
-            .call()
-            .map_err(|err| TimeDataError::Download(format!("fetch {url} failed: {err}")))?;
-        let bytes = {
-            let mut buf = Vec::new();
-            response
-                .into_body()
-                .into_reader()
-                .read_to_end(&mut buf)
-                .map_err(|err| TimeDataError::Download(format!("read {url} body failed: {err}")))?;
-            buf
-        };
-        let text = String::from_utf8(bytes.clone())
-            .map_err(|err| TimeDataError::Download(format!("{url} is not UTF-8: {err}")))?;
-        Ok(DownloadedText {
-            text,
-            sha256: sha256_bytes(&bytes),
-        })
+        fetch_with_retry(url, &agent, std::thread::sleep)
+    }
+
+    fn fetch_with_retry(
+        url: &str,
+        agent: &ureq::Agent,
+        wait: impl Fn(Duration),
+    ) -> Result<DownloadedText, TimeDataError> {
+        const ATTEMPTS: u32 = 3;
+        for attempt in 1..=ATTEMPTS {
+            let result = agent
+                .get(url)
+                .header("User-Agent", "tempoch-runtime-data/1.0")
+                .call()
+                .and_then(|mut response| {
+                    if response.status() != ureq::http::StatusCode::OK {
+                        return Err(ureq::Error::StatusCode(response.status().as_u16()));
+                    }
+                    response.body_mut().read_to_vec()
+                });
+            match result {
+                Ok(bytes) => {
+                    let sha256 = sha256_bytes(&bytes);
+                    let text = String::from_utf8(bytes).map_err(|err| {
+                        TimeDataError::Integrity(format!("{url} is not UTF-8: {err}"))
+                    })?;
+                    return Ok(DownloadedText { text, sha256 });
+                }
+                Err(err @ ureq::Error::BodyExceedsLimit(_)) => {
+                    return Err(TimeDataError::Integrity(format!("{url}: {err}")));
+                }
+                Err(err) if is_transient(&err) => {
+                    if attempt == ATTEMPTS {
+                        return Err(TimeDataError::Download(format!(
+                            "{url}: transient transport failure after {attempt} attempts: {err}"
+                        )));
+                    }
+                    let delay = Duration::from_secs(1 << attempt);
+                    eprintln!("{url}: transient transport failure (attempt {attempt}/{ATTEMPTS}): {err}; retrying in {}s", delay.as_secs());
+                    wait(delay);
+                }
+                Err(err) => {
+                    return Err(TimeDataError::Download(format!(
+                        "{url}: non-retryable response or transport failure: {err}"
+                    )));
+                }
+            }
+        }
+        unreachable!("retry loop returns on the last attempt")
+    }
+
+    fn is_transient(error: &ureq::Error) -> bool {
+        use std::io::ErrorKind;
+        match error {
+            ureq::Error::Timeout(_)
+            | ureq::Error::HostNotFound
+            | ureq::Error::ConnectionFailed
+            | ureq::Error::BodyStalled
+            | ureq::Error::StatusCode(408 | 429 | 500 | 502..=504) => true,
+            ureq::Error::Io(err) => matches!(
+                err.kind(),
+                ErrorKind::TimedOut
+                    | ErrorKind::ConnectionAborted
+                    | ErrorKind::ConnectionRefused
+                    | ErrorKind::ConnectionReset
+                    | ErrorKind::UnexpectedEof
+                    | ErrorKind::BrokenPipe
+                    | ErrorKind::NotConnected
+            ),
+            _ => false,
+        }
     }
 
     fn render_provenance_toml(provenance: &TimeDataProvenance) -> String {
@@ -511,6 +567,84 @@ mod fetch_support {
             )));
         }
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use std::io::{BufRead, BufReader, Write};
+        use std::net::TcpListener;
+        use std::thread;
+
+        fn mock_http(responses: &[Option<&'static [u8]>]) -> (String, thread::JoinHandle<()>) {
+            let server = TcpListener::bind("127.0.0.1:0").unwrap();
+            let url = format!("http://{}/dataset", server.local_addr().unwrap());
+            let responses = responses.to_vec();
+            let handle = thread::spawn(move || {
+                let mut stalled = Vec::new();
+                for response in responses {
+                    let (mut stream, _) = server.accept().unwrap();
+                    stream
+                        .set_read_timeout(Some(Duration::from_secs(2)))
+                        .unwrap();
+                    let mut reader = BufReader::new(&stream);
+                    loop {
+                        let mut line = String::new();
+                        if reader.read_line(&mut line).unwrap() == 0 || line == "\r\n" {
+                            break;
+                        }
+                    }
+                    if let Some(response) = response {
+                        stream.write_all(response).unwrap();
+                    } else {
+                        stalled.push(stream);
+                    }
+                }
+                // Let the final request time out too.
+                if !stalled.is_empty() {
+                    thread::sleep(Duration::from_millis(250));
+                }
+            });
+            (url, handle)
+        }
+
+        fn agent(timeout: Duration) -> ureq::Agent {
+            ureq::config::Config::builder()
+                .proxy(None)
+                .timeout_global(Some(timeout))
+                .build()
+                .new_agent()
+        }
+
+        #[test]
+        fn timeout_retries_are_bounded_and_identify_the_source() {
+            let (url, server) = mock_http(&[None, None, None]);
+            let waits = std::cell::RefCell::new(Vec::new());
+            let result = fetch_with_retry(&url, &agent(Duration::from_millis(100)), |delay| {
+                waits.borrow_mut().push(delay.as_secs());
+            });
+            assert_eq!(*waits.borrow(), [2, 4]);
+            assert!(matches!(result, Err(TimeDataError::Download(message))
+                if message.contains(&url) && message.contains("after 3 attempts")));
+            server.join().unwrap();
+        }
+
+        #[test]
+        fn retries_transient_http_but_rejects_invalid_payload_without_retry() {
+            let (url, server) = mock_http(&[
+                Some(b"HTTP/1.1 503 Unavailable\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"),
+                Some(b"HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 1\r\n\r\n\xff"),
+            ]);
+            let waits = std::cell::RefCell::new(Vec::new());
+            let result = fetch_with_retry(&url, &agent(Duration::from_secs(2)), |delay| {
+                waits.borrow_mut().push(delay.as_secs());
+            });
+            assert_eq!(*waits.borrow(), [2]);
+            assert!(
+                matches!(result, Err(TimeDataError::Integrity(message)) if message.contains(&url))
+            );
+            server.join().unwrap();
+        }
     }
 }
 
@@ -707,6 +841,12 @@ pub fn parse_utc_tai_segments(text: &str) -> Result<Vec<UtcTaiSegment>, String> 
                 (mjd_from_date(start_date) as f64, 0.0)
             };
 
+        if !base_seconds.is_finite()
+            || !reference_mjd.is_finite()
+            || !slope_seconds_per_day.is_finite()
+        {
+            return Err(format!("non-finite value in UTC-TAI history: {line:?}"));
+        }
         segments.push(UtcTaiSegment {
             start_mjd: mjd_from_date(start_date),
             end_mjd: end_date.map(mjd_from_date),
@@ -815,6 +955,12 @@ fn validate_utc_tai_segments(segments: &[UtcTaiSegment]) -> Result<(), String> {
 }
 
 fn validate_strictly_increasing_mjds(label: &str, points: &[(f64, f64)]) -> Result<(), String> {
+    if points
+        .iter()
+        .any(|(mjd, value)| !mjd.is_finite() || !value.is_finite())
+    {
+        return Err(format!("{label} contains a non-finite value"));
+    }
     for window in points.windows(2) {
         let current = window[0].0;
         let next = window[1].0;
@@ -1016,7 +1162,7 @@ fn col(line: &str, start_1based: usize, end_1based_inclusive: usize) -> Option<&
     if line.len() < end {
         return None;
     }
-    Some(&line[start..end])
+    line.get(start..end)
 }
 
 fn parse_f64(slice: &str) -> Option<f64> {
@@ -1024,7 +1170,10 @@ fn parse_f64(slice: &str) -> Option<f64> {
     if trimmed.is_empty() {
         return None;
     }
-    trimmed.parse::<f64>().ok()
+    trimmed
+        .parse::<f64>()
+        .ok()
+        .filter(|value| value.is_finite())
 }
 
 fn parse_flag(slice: &str) -> Option<char> {
@@ -1327,8 +1476,8 @@ pub use bundled::bundled_time_data;
 ///
 /// Returns static metadata describing the upstream sources.  For a provenance
 /// record that includes fetch timestamps and per-file SHA-256 hashes of a
-/// specific download, use [`TimeDataProvenance`] returned by
-/// [`TimeDataManager::load`].
+/// specific download, call [`TimeDataBundle::provenance`] on a bundle obtained
+/// with `TimeDataManager::refresh_and_load` (requires the `fetch` feature).
 pub fn provenance() -> crate::provenance::DatasetProvenance {
     crate::provenance::DatasetProvenance {
         source: "NAIF Leap Second Kernel naif0012.tls; \

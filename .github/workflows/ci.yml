@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-D warnings"
@@ -55,4 +58,19 @@ jobs:
       - name: Validate manifests
         run: cargo run -p archive-validate -- MANIFEST.toml
       - name: Verify publishability
-        run: cargo publish --dry-run --allow-dirty -p siderust-archive
+        run: cargo publish --dry-run --locked --all-features -p siderust-archive
+
+  release-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -B -m unittest discover -s scripts -p 'test_archive_release.py'
+
+  packaged-docs:
+    name: docs.rs (packaged, all features)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@stable
+      - run: bash scripts/check-packaged-docs.sh

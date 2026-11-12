@@ -1,15 +1,14 @@
 [package]
 name = "siderust-archive"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 authors = ["Vallés Puig, Ramon <vallespuigramon@gmail.com>"]
 license = "BSD-3-Clause"
 description = "Reusable Rust bindings for the Siderust Archive: manifests, checksums, provenance, and runtime download of scientific datasets (IERS time data, kernels, planetary theories)."
 repository = "https://github.com/Siderust/archive"
-homepage = "https://github.com/Siderust/archive"
 documentation = "https://docs.rs/siderust-archive"
 readme = "README.md"
-keywords = ["astronomy", "ephemeris", "iers", "spice", "siderust", "no-std"]
+keywords = ["astronomy", "ephemeris", "iers", "spice", "no-std"]
 categories = ["science", "aerospace", "parser-implementations", "no-std"]
 
 # The archive is its own repository; this crate must stand alone and not be

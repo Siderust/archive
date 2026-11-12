@@ -11,7 +11,7 @@
 //!    [`TimeDataManager`](siderust_archive::time::TimeDataManager) into a fresh
 //!    cache directory.
 //! 2. Verifies that the bundle parses correctly and computes SHA-256 hashes.
-//! 3. Atomically swaps the downloaded raw files into
+//! 3. Prepares the complete validated update before installing it into
 //!    `<archive>/src/time/eop/raw/`.
 //! 4. Writes a `time_data.provenance.toml` recording fetch timestamp and per-
 //!    file SHA-256.
@@ -39,13 +39,16 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use siderust_archive::time::TimeDataManager;
+use siderust_archive::time::{
+    parse_delta_t_observed, parse_delta_t_predictions, parse_eop_finals, parse_utc_tai_segments,
+    TimeDataBundle, TimeDataManager,
+};
 
-const RAW_FILES: [(&str, &str); 4] = [
-    ("UTC-TAI.history", "utc_tai_sha256"),
-    ("deltat.data", "delta_t_observed_sha256"),
-    ("deltat.preds", "delta_t_predictions_sha256"),
-    ("finals2000A.all", "eop_finals_sha256"),
+const RAW_FILES: [&str; 4] = [
+    "UTC-TAI.history",
+    "deltat.data",
+    "deltat.preds",
+    "finals2000A.all",
 ];
 
 const PROVENANCE_FILE: &str = "time_data.provenance.toml";
@@ -154,97 +157,191 @@ fn run(args: &CliArgs) -> Result<String, String> {
         ));
     }
 
-    let eop_dir = archive_root.join("src").join("time").join("eop");
-    let raw_dir = eop_dir.join("raw");
-    fs::create_dir_all(&raw_dir)
-        .map_err(|e| format!("cannot create raw dir {:?}: {e}", raw_dir))?;
-
     let staging = archive_root.join(".time-update-staging");
-    if staging.exists() {
-        fs::remove_dir_all(&staging)
-            .map_err(|e| format!("cannot clear staging dir {:?}: {e}", staging))?;
+    fs::create_dir(&staging)
+        .map_err(|e| format!("cannot create staging directory {staging:?}: {e}"))?;
+
+    let result = (|| {
+        let manager = TimeDataManager::with_dir(&staging)
+            .map_err(|e| format!("cannot initialise TimeDataManager: {e}"))?;
+        println!("Downloading and verifying IERS/USNO bundle");
+        let bundle = manager.refresh_and_load().map_err(|e| e.to_string())?;
+        install_snapshot(&archive_root, &staging, &bundle)
+    })();
+    if let Err(error) = fs::remove_dir_all(&staging) {
+        eprintln!("could not remove staging directory {staging:?}: {error}");
     }
-    fs::create_dir_all(&staging)
-        .map_err(|e| format!("cannot create staging dir {:?}: {e}", staging))?;
+    result
+}
 
-    let manager = TimeDataManager::with_dir(&staging)
-        .map_err(|e| format!("cannot initialise TimeDataManager: {e}"))?;
-
-    println!("Downloading and verifying IERS bundle into {:?}", staging);
-    let bundle = manager
-        .refresh_and_load()
-        .map_err(|e| format!("download or verification failed: {e}"))?;
-
+fn install_snapshot(
+    archive_root: &Path,
+    staging: &Path,
+    bundle: &TimeDataBundle,
+) -> Result<String, String> {
+    let eop_dir = archive_root.join("src/time/eop");
+    let raw_dir = eop_dir.join("raw");
     let cached = staging.join("bundle");
-    let mut changed_files: Vec<&'static str> = Vec::new();
-
-    for (name, _sha_field) in RAW_FILES {
-        let src = cached.join(name);
-        if !src.exists() {
-            return Err(format!("expected cached file missing: {:?}", src));
-        }
-        let dst = raw_dir.join(name);
-        if file_contents_differ(&src, &dst) {
-            fs::copy(&src, &dst).map_err(|e| format!("cannot copy {:?} -> {:?}: {e}", src, dst))?;
-            changed_files.push(name);
+    let mut changed = Vec::new();
+    for name in RAW_FILES {
+        if read(&cached.join(name))? != read(&raw_dir.join(name))? {
+            changed.push(name);
         }
     }
-
-    let src_prov = cached.join(PROVENANCE_FILE);
-    let dst_prov = raw_dir.join(PROVENANCE_FILE);
-    if !src_prov.exists() {
-        return Err(format!(
-            "TimeDataManager did not write {} into the staging bundle",
-            PROVENANCE_FILE
-        ));
-    }
-    let prov_changed = file_contents_differ(&src_prov, &dst_prov);
-    if prov_changed {
-        fs::copy(&src_prov, &dst_prov).map_err(|e| {
-            format!(
-                "cannot copy provenance {:?} -> {:?}: {e}",
-                src_prov, dst_prov
-            )
-        })?;
+    if changed.is_empty() {
+        return Ok("All four datasets validated; scientific payloads unchanged.".into());
     }
 
-    // Snapshot path is now directly under src/ (not under crates/siderust-archive/).
-    let snapshot_path = archive_root
-        .join("src")
-        .join("time")
-        .join("bundled")
-        .join("snapshot.rs");
-    write_bundled_snapshot(&snapshot_path, &bundle)?;
+    validate_coverage(&raw_dir, &cached)?;
 
-    let manifest_path = eop_dir.join("manifest.toml");
-    update_manifest_files_block(&manifest_path, &eop_dir)?;
+    // Generate everything in staging before touching the checkout. The workflow
+    // validates the resulting manifest and commits all paths together.
+    let snapshot = staging.join("snapshot.rs");
+    write_bundled_snapshot(&snapshot, bundle)?;
+    let manifest = staging.join("manifest.toml");
+    copy(&eop_dir.join("manifest.toml"), &manifest)?;
+    fs::rename(&cached, staging.join("raw")).map_err(|e| format!("cannot stage raw files: {e}"))?;
+    update_manifest_files_block(&manifest, staging)?;
 
-    fs::remove_dir_all(&staging).ok();
+    for name in changed.iter().copied().chain([PROVENANCE_FILE]) {
+        install(&staging.join("raw").join(name), &raw_dir.join(name))?;
+    }
+    install(&manifest, &eop_dir.join("manifest.toml"))?;
+    install(
+        &snapshot,
+        &archive_root.join("src/time/bundled/snapshot.rs"),
+    )?;
+    Ok(format!(
+        "Validated and refreshed datasets: {}",
+        changed.join(", ")
+    ))
+}
 
-    let summary = format!(
-        "Bundle refreshed successfully.\n\
-         Archive root:   {archive:?}\n\
-         Raw dir:        {raw:?}\n\
-         UTC-TAI segments: {leap}\n\
-         Modern ΔT points: {delta}\n\
-         EOP points:       {eop}\n\
-         Data changed:     {changed}\n\
-         Provenance file:  {prov}\n\
-         Bundled snapshot: {snap:?}",
-        archive = archive_root,
-        raw = raw_dir,
-        leap = bundle.utc_tai_segments().len(),
-        delta = bundle.modern_delta_t_points().len(),
-        eop = bundle.eop_points().len(),
-        changed = if changed_files.is_empty() {
-            "none".to_string()
-        } else {
-            changed_files.join(", ")
+fn read(path: &Path) -> Result<Vec<u8>, String> {
+    fs::read(path).map_err(|e| format!("cannot read {path:?}: {e}"))
+}
+
+fn copy(from: &Path, to: &Path) -> Result<(), String> {
+    fs::copy(from, to).map_err(|e| format!("cannot copy {from:?} to {to:?}: {e}"))?;
+    Ok(())
+}
+
+fn install(from: &Path, to: &Path) -> Result<(), String> {
+    fs::rename(from, to).map_err(|e| format!("cannot install {to:?}: {e}"))
+}
+
+/// The public parsers also accept short historical fixtures. Maintenance must
+/// reject a parseable prefix or a dataset that lost committed coverage.
+fn validate_coverage(committed: &Path, candidate: &Path) -> Result<(), String> {
+    fn check<T>(
+        committed: &Path,
+        candidate: &Path,
+        name: &str,
+        parse: impl Fn(&str) -> Result<Vec<T>, String>,
+        complete: impl Fn(&[T], &[T]) -> bool,
+    ) -> Result<(), String> {
+        let load = |dir: &Path| {
+            let path = dir.join(name);
+            let text =
+                fs::read_to_string(&path).map_err(|e| format!("cannot read {path:?}: {e}"))?;
+            parse(&text).map_err(|e| format!("invalid scientific data in {path:?}: {e}"))
+        };
+        if !complete(&load(committed)?, &load(candidate)?) {
+            return Err(format!(
+                "invalid scientific data in {name}: snapshot coverage regressed"
+            ));
+        }
+        Ok(())
+    }
+
+    check(
+        committed,
+        candidate,
+        "UTC-TAI.history",
+        parse_utc_tai_segments,
+        |old, new| {
+            new.len() >= old.len()
+                && new[0].start_mjd <= old[0].start_mjd
+                && new.last().unwrap().end_mjd.is_none()
         },
-        prov = if prov_changed { "updated" } else { "unchanged" },
-        snap = snapshot_path,
-    );
-    Ok(summary)
+    )?;
+    check(
+        committed,
+        candidate,
+        "deltat.data",
+        |text| {
+            let points = parse_delta_t_observed(text)?;
+            if points.len() != text.lines().filter(|line| !line.trim().is_empty()).count() {
+                return Err("malformed row in observed Delta T".into());
+            }
+            Ok(points)
+        },
+        |old, new| {
+            new.len() >= old.len()
+                && old.iter().all(|row| {
+                    new.binary_search_by(|point| point.0.total_cmp(&row.0))
+                        .is_ok()
+                })
+        },
+    )?;
+    check(
+        committed,
+        candidate,
+        "deltat.preds",
+        |text| {
+            let points = parse_delta_t_predictions(text)?;
+            let rows = text
+                .lines()
+                .filter(|line| {
+                    line.split_whitespace()
+                        .next()
+                        .is_some_and(|field| field != "MJD")
+                })
+                .count();
+            if points.len() != rows {
+                return Err("malformed row in Delta T predictions".into());
+            }
+            Ok(points)
+        },
+        |old, new| {
+            // The prediction window can roll forward as historical predictions expire.
+            let last_old = old.last().unwrap().0;
+            let max_gap = old
+                .windows(2)
+                .map(|rows| rows[1].0 - rows[0].0)
+                .fold(0.0, f64::max);
+            new[0].0 <= last_old
+                && new.last().unwrap().0 >= last_old
+                && new.len() >= 2
+                && new
+                    .windows(2)
+                    .all(|rows| rows[1].0 - rows[0].0 <= max_gap + 1.0)
+        },
+    )?;
+    check(
+        committed,
+        candidate,
+        "finals2000A.all",
+        parse_eop_finals,
+        |old, new| {
+            if new[0].mjd > old[0].mjd || new.last().unwrap().mjd < old.last().unwrap().mjd {
+                return false;
+            }
+            // The parser guarantees contiguous daily coverage. Verify that an
+            // overlapping row has not lost observed status or a measured field.
+            let offset = (old[0].mjd - new[0].mjd) as usize;
+            old.iter().zip(&new[offset..]).all(|(old, new)| {
+                (!old.ut1_observed || new.ut1_observed)
+                    && (!old.pm_observed || new.pm_observed)
+                    && (!old.nutation_observed || new.nutation_observed)
+                    && (old.pm_xp.is_none() || new.pm_xp.is_some())
+                    && (old.pm_yp.is_none() || new.pm_yp.is_some())
+                    && (old.lod.is_none() || new.lod.is_some())
+                    && (old.dx.is_none() || new.dx.is_some())
+                    && (old.dy.is_none() || new.dy.is_some())
+            })
+        },
+    )
 }
 
 fn sha256_hex(data: &[u8]) -> String {
@@ -429,12 +526,121 @@ fn write_bundled_snapshot(
     Ok(())
 }
 
-fn file_contents_differ(a: &Path, b: &Path) -> bool {
-    if !b.exists() {
-        return true;
-    }
-    match (fs::read(a), fs::read(b)) {
-        (Ok(va), Ok(vb)) => va != vb,
-        _ => true,
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn install_requires_a_scientific_change_and_preserves_snapshot_on_rejection() {
+        let root = env::temp_dir().join(format!(
+            "archive-update-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&root).unwrap();
+        struct TempDir(PathBuf);
+        impl Drop for TempDir {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+        let _temp = TempDir(root.clone());
+        let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/time");
+        let eop = root.join("src/time/eop");
+        let raw = eop.join("raw");
+        let snapshot = root.join("src/time/bundled/snapshot.rs");
+        let staging = root.join("staging");
+        let cached = staging.join("bundle");
+        fs::create_dir_all(&raw).unwrap();
+        fs::create_dir_all(&cached).unwrap();
+        fs::create_dir_all(snapshot.parent().unwrap()).unwrap();
+        for name in RAW_FILES.into_iter().chain([PROVENANCE_FILE]) {
+            fs::copy(fixture.join("eop/raw").join(name), raw.join(name)).unwrap();
+            fs::copy(raw.join(name), cached.join(name)).unwrap();
+        }
+        let manifest = eop.join("manifest.toml");
+        fs::copy(fixture.join("eop/manifest.toml"), &manifest).unwrap();
+        fs::copy(fixture.join("bundled/snapshot.rs"), &snapshot).unwrap();
+        let committed = || {
+            [
+                &raw.join(PROVENANCE_FILE),
+                &raw.join("deltat.data"),
+                &manifest,
+                &snapshot,
+            ]
+            .map(|path| fs::read(path).unwrap())
+        };
+        let before = committed();
+        let provenance = fs::read_to_string(raw.join(PROVENANCE_FILE)).unwrap();
+        let mut metadata = provenance.parse::<toml::Table>().unwrap();
+        metadata.insert("fetched_utc".into(), "2026-11-12T00:00:00".into());
+        let manager = TimeDataManager::with_dir(&staging).unwrap();
+        let install = |metadata: &toml::Table| {
+            fs::write(
+                cached.join(PROVENANCE_FILE),
+                toml::to_string(metadata).unwrap(),
+            )
+            .unwrap();
+            let bundle = manager.load_cached().unwrap();
+            install_snapshot(&root, &staging, &bundle)
+        };
+
+        assert!(install(&metadata).unwrap().contains("unchanged"));
+        assert_eq!(committed(), before);
+
+        let finals = fs::read_to_string(raw.join("finals2000A.all")).unwrap();
+        let mut missing_pm = finals.clone();
+        missing_pm.replace_range(18..27, "         ");
+        fs::write(cached.join("finals2000A.all"), &missing_pm).unwrap();
+        metadata.insert(
+            "eop_finals_sha256".into(),
+            sha256_hex(missing_pm.as_bytes()).into(),
+        );
+        assert!(install(&metadata)
+            .unwrap_err()
+            .contains("finals2000A.all: snapshot coverage regressed"));
+        assert_eq!(committed(), before);
+        assert_eq!(
+            fs::read_to_string(raw.join("finals2000A.all")).unwrap(),
+            finals
+        );
+        fs::write(cached.join("finals2000A.all"), &finals).unwrap();
+        metadata.insert(
+            "eop_finals_sha256".into(),
+            sha256_hex(finals.as_bytes()).into(),
+        );
+
+        let observed = fs::read_to_string(raw.join("deltat.data")).unwrap();
+        let truncated = observed.lines().take(2).collect::<Vec<_>>().join("\n");
+        fs::write(cached.join("deltat.data"), &truncated).unwrap();
+        assert!(manager.load_cached().is_err()); // Payload no longer matches the checksum.
+        metadata.insert(
+            "delta_t_observed_sha256".into(),
+            sha256_hex(truncated.as_bytes()).into(),
+        );
+        assert!(install(&metadata)
+            .unwrap_err()
+            .contains("coverage regressed"));
+        assert_eq!(committed(), before);
+
+        let corrected = observed.replacen("43.4724", "43.4725", 1);
+        assert_ne!(corrected, observed);
+        fs::write(cached.join("deltat.data"), &corrected).unwrap();
+        metadata.insert(
+            "delta_t_observed_sha256".into(),
+            sha256_hex(corrected.as_bytes()).into(),
+        );
+        assert_eq!(
+            install(&metadata).unwrap(),
+            "Validated and refreshed datasets: deltat.data"
+        );
+        assert_eq!(
+            fs::read_to_string(raw.join("deltat.data")).unwrap(),
+            corrected
+        );
+        assert_ne!(committed(), before);
     }
 }
