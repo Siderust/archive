@@ -60,7 +60,7 @@ class GitReleaseTest(unittest.TestCase):
         self.base = self.commit()
         release.git("update-ref", release.MAIN, self.base)
         self.refresh = self.enterContext(patch.object(release, "refresh", return_value=[]))
-        self.registry = self.enterContext(patch.object(release, "registry_entry", return_value={}))
+        self.registry = self.enterContext(patch.object(release, "registry_entry", return_value=None))
         self.github = self.enterContext(patch.object(release, "github_release", return_value=None))
         self.validate = self.enterContext(patch.object(release, "validate_candidate"))
 
@@ -124,6 +124,20 @@ class GitReleaseTest(unittest.TestCase):
             release.release("manual", "0.1.6")
         self.assertIsNone(release.tag_commit("0.1.6"))
         self.validate.assert_not_called()
+
+    def test_manual_release_tags_the_reviewed_main_commit(self):
+        with tempfile.TemporaryDirectory() as bare:
+            release.git("init", "--bare", "--initial-branch=main", bare)
+            release.git("remote", "add", "origin", bare)
+            release.git("push", "origin", "HEAD:refs/heads/main")
+            with (patch.dict(os.environ, CARGO_REGISTRY_TOKEN="fixture"),
+                  patch.object(release, "publish") as publish):
+                release.release("manual", "0.1.6")
+            self.assertEqual(release.tag_commit("0.1.6"), self.base)
+            self.assertEqual(release.git("rev-parse", release.MAIN), self.base)
+            self.assertEqual(release.git("cat-file", "-t", release.tag_ref("0.1.6")), "tag")
+            self.validate.assert_called_once_with(dirty=False)
+            publish.assert_called_once_with("0.1.6", self.base, None, None)
 
     def test_valid_data_prepares_patch_and_pushes_one_annotated_tag(self):
         with tempfile.TemporaryDirectory() as bare:

@@ -324,10 +324,22 @@ fn validate_coverage(committed: &Path, candidate: &Path) -> Result<(), String> {
         "finals2000A.all",
         parse_eop_finals,
         |old, new| {
-            new[0].mjd <= old[0].mjd
-                && new.last().unwrap().mjd >= old.last().unwrap().mjd
-                && siderust_archive::time::observed_end_mjd(new)
-                    >= siderust_archive::time::observed_end_mjd(old)
+            if new[0].mjd > old[0].mjd || new.last().unwrap().mjd < old.last().unwrap().mjd {
+                return false;
+            }
+            // The parser guarantees contiguous daily coverage. Verify that an
+            // overlapping row has not lost observed status or a measured field.
+            let offset = (old[0].mjd - new[0].mjd) as usize;
+            old.iter().zip(&new[offset..]).all(|(old, new)| {
+                (!old.ut1_observed || new.ut1_observed)
+                    && (!old.pm_observed || new.pm_observed)
+                    && (!old.nutation_observed || new.nutation_observed)
+                    && (old.pm_xp.is_none() || new.pm_xp.is_some())
+                    && (old.pm_yp.is_none() || new.pm_yp.is_some())
+                    && (old.lod.is_none() || new.lod.is_some())
+                    && (old.dx.is_none() || new.dx.is_some())
+                    && (old.dy.is_none() || new.dy.is_some())
+            })
         },
     )
 }
@@ -578,6 +590,28 @@ mod tests {
 
         assert!(install(&metadata).unwrap().contains("unchanged"));
         assert_eq!(committed(), before);
+
+        let finals = fs::read_to_string(raw.join("finals2000A.all")).unwrap();
+        let mut missing_pm = finals.clone();
+        missing_pm.replace_range(18..27, "         ");
+        fs::write(cached.join("finals2000A.all"), &missing_pm).unwrap();
+        metadata.insert(
+            "eop_finals_sha256".into(),
+            sha256_hex(missing_pm.as_bytes()).into(),
+        );
+        assert!(install(&metadata)
+            .unwrap_err()
+            .contains("finals2000A.all: snapshot coverage regressed"));
+        assert_eq!(committed(), before);
+        assert_eq!(
+            fs::read_to_string(raw.join("finals2000A.all")).unwrap(),
+            finals
+        );
+        fs::write(cached.join("finals2000A.all"), &finals).unwrap();
+        metadata.insert(
+            "eop_finals_sha256".into(),
+            sha256_hex(finals.as_bytes()).into(),
+        );
 
         let observed = fs::read_to_string(raw.join("deltat.data")).unwrap();
         let truncated = observed.lines().take(2).collect::<Vec<_>>().join("\n");
