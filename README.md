@@ -99,12 +99,15 @@ workspace when used through a local `path` dependency.
 siderust-archive = { version = "0.1.7", default-features = false, features = ["vsop-compact"] }
 ```
 
-`siderust_archive::vsop_compact` provides one function per body. Pass a TDB
-Julian date to receive a geometric barycentric `[X, Y, Z]` in AU in the native
+`siderust_archive::vsop_compact` provides a checked function per body, such as
+`try_mars(jd_tdb)`. It returns `CompactEphemerisError` for non-finite dates or
+dates outside `[FIRST_JD_TDB, END_JD_TDB)` (2020-01-01 through 2050-12-31 TDB).
+The direct functions, such as `mars(jd_tdb)`, evaluate unchecked.
+
+On success, the position is a geometric barycentric `[X, Y, Z]` in AU in the native
 VSOP87 dynamical ecliptic and equinox of J2000.0. Subtract the Earth vector at
 the same epoch for an Earth-relative vector. The compiled coefficients require
-no runtime I/O or allocation. Coverage is 2020-01-01 through 2050-12-31 TDB.
-The profile provides positions for the Sun and eight planets.
+no runtime I/O or allocation.
 
 The [validation report](reports/compact-vsop87.md) includes accuracy, linked
 size, performance, source checksums, and reproduction commands.

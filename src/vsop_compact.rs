@@ -10,23 +10,61 @@
 //! or heliocentric positions. The functions perform no light-time, aberration,
 //! or observer corrections.
 //!
-//! The validated interval is [`FIRST_JD_TDB`, `END_JD_TDB`). Evaluation outside
-//! that range extrapolates the truncated series. The functions perform no
-//! range checking. This profile provides positions only.
+//! Use the checked `try_*` functions for input that needs validation. They
+//! accept finite TDB Julian dates in [`FIRST_JD_TDB`, `END_JD_TDB`). The direct
+//! body functions are unchecked and extrapolate the truncated series outside
+//! the validated interval. This profile provides positions only.
 //!
 //! Each body has its own static coefficients so the linker can discard unused
 //! bodies. Evaluation uses `f64` throughout and does not allocate.
 //!
 //! ```
-//! use siderust_archive::vsop_compact::{earth, sun, FIRST_JD_TDB};
+//! use siderust_archive::vsop_compact::{try_earth, try_sun, FIRST_JD_TDB};
 //!
-//! let earth = earth(FIRST_JD_TDB);
-//! let sun = sun(FIRST_JD_TDB);
+//! let earth = try_earth(FIRST_JD_TDB)?;
+//! let sun = try_sun(FIRST_JD_TDB)?;
 //! let geocentric_sun = core::array::from_fn::<_, 3, _>(|i| sun[i] - earth[i]);
 //! assert!(geocentric_sun[0].value().is_finite());
+//! # Ok::<(), siderust_archive::vsop_compact::CompactEphemerisError>(())
 //! ```
 
 use qtty::AstronomicalUnit;
+
+/// An epoch rejected by a checked compact VSOP87E position function.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompactEphemerisError {
+    /// The Julian date was NaN or infinite.
+    NonFiniteEpoch,
+    /// The finite Julian date was outside the supported interval.
+    OutsideValidityInterval,
+}
+
+impl core::fmt::Display for CompactEphemerisError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NonFiniteEpoch => {
+                f.write_str("compact VSOP87E requires a finite TDB Julian date")
+            }
+            Self::OutsideValidityInterval => write!(
+                f,
+                "compact VSOP87E requires a TDB Julian date in [{FIRST_JD_TDB}, {END_JD_TDB})"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for CompactEphemerisError {}
+
+#[inline]
+fn validate_epoch(jd_tdb: f64) -> Result<(), CompactEphemerisError> {
+    if !jd_tdb.is_finite() {
+        return Err(CompactEphemerisError::NonFiniteEpoch);
+    }
+    if !(FIRST_JD_TDB..END_JD_TDB).contains(&jd_tdb) {
+        return Err(CompactEphemerisError::OutsideValidityInterval);
+    }
+    Ok(())
+}
 
 fn axis(terms: &[[f64; 3]], ends: [u16; 6], t: f64) -> AstronomicalUnit {
     // Horner evaluation of the six polynomial orders. Terms within each
@@ -45,7 +83,7 @@ fn axis(terms: &[[f64; 3]], ends: [u16; 6], t: f64) -> AstronomicalUnit {
 
 #[allow(clippy::excessive_precision, clippy::approx_constant)]
 mod data {
-    use super::{axis, AstronomicalUnit};
+    use super::{axis, validate_epoch, AstronomicalUnit, CompactEphemerisError};
     include!(concat!(env!("OUT_DIR"), "/vsop87e_compact.rs"));
 }
 

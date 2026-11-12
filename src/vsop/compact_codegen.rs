@@ -76,11 +76,15 @@ pub(super) fn generate(planets: &PlanetMap, sha256: &str) -> anyhow::Result<Stri
         let name = body.to_ascii_lowercase();
         writeln!(
             code,
-            "\n/// Barycentric {name} position at Julian date `jd_tdb` (TDB)."
+            "\n/// Unchecked barycentric {name} position at Julian date `jd_tdb` (TDB)."
         )?;
         writeln!(
             code,
             "/// Omitted-term budget: {budget:e} AU per Cartesian axis."
+        )?;
+        writeln!(
+            code,
+            "/// Use [`try_{name}`] to enforce the validated interval."
         )?;
         writeln!(
             code,
@@ -128,6 +132,16 @@ pub(super) fn generate(planets: &PlanetMap, sha256: &str) -> anyhow::Result<Stri
         writeln!(
             code,
             "    [axis(&X, X_ENDS, t), axis(&Y, Y_ENDS, t), axis(&Z, Z_ENDS, t)]\n}}"
+        )?;
+        writeln!(
+            code,
+            "\n/// Checked barycentric {name} position at Julian date `jd_tdb` (TDB).\n\
+             ///\n\
+             /// # Errors\n\
+             /// Returns [`CompactEphemerisError`] if the date is non-finite or outside\n\
+             /// [`FIRST_JD_TDB`, `END_JD_TDB`).\n\
+             #[inline]\n\
+             pub fn try_{name}(jd_tdb: f64) -> Result<[AstronomicalUnit; 3], CompactEphemerisError> {{\n    validate_epoch(jd_tdb)?;\n    Ok({name}(jd_tdb))\n}}"
         )?;
     }
     Ok(code)

@@ -87,6 +87,68 @@ def compiled_model(executable, dates):
     return values[:, 1:].reshape(-1, len(BODIES), 3)
 
 
+def earth_relative(vectors):
+    return vectors - vectors[:, EARTH:EARTH + 1]
+
+
+def write_fixture(path, dates, jpl, full, compact):
+    """Select stress cases from the validation samples and write DE440s rows."""
+    cases = {}
+
+    def sample(index, label):
+        jd = dates[index]
+        cases.setdefault(jd, []).append(label)
+
+    sample(0, "first valid JD")
+    sample(-1, "last representable valid JD")
+    targets = np.linspace(FIRST_JD + 17.25, END_JD - 81.0, 16)
+    for index in np.searchsorted(dates, targets):
+        sample(index, "representative epoch")
+    geo = earth_relative(jpl)
+    for body, name in enumerate(BODIES):
+        if body not in (SUN, EARTH):
+            elongation = angle(geo[:, SUN], geo[:, body])
+            distance = np.linalg.norm(geo[:, body], axis=-1)
+            if name in ("Mercury", "Venus"):
+                # The two classes of conjunction have Earth distances on
+                # opposite sides of 1 AU for these planets.
+                inferior = np.where(distance < 1.0, elongation, np.inf)
+                superior = np.where(distance >= 1.0, elongation, np.inf)
+                sample(inferior.argmin(), f"{name} near inferior conjunction")
+                sample(superior.argmin(), f"{name} near superior conjunction")
+            else:
+                sample(elongation.argmin(), f"{name} near conjunction")
+                sample(elongation.argmax(), f"{name} near opposition")
+            sample(distance.argmin(), f"{name} closest sampled approach")
+
+    geo_compact, geo_full = earth_relative(compact), earth_relative(full)
+    for comparison, model, baseline in [
+        ("compact vs DE440s", geo_compact, geo),
+        ("compact vs full", geo_compact, geo_full),
+        ("full vs DE440s", geo_full, geo),
+    ]:
+        errors = angle(model, baseline)
+        for body, name in enumerate(BODIES):
+            if body != EARTH:
+                sample(errors[:, body].argmax(), f"{name} geocentric peak {comparison}")
+
+    # Earth has no geocentric direction. Include the peak Earth SSB errors
+    # and the short solar SSB vector's largest absolute model discrepancy.
+    sample(angle(compact[:, EARTH], jpl[:, EARTH]).argmax(), "Earth barycentric peak compact vs DE440s")
+    sample(angle(compact[:, EARTH], full[:, EARTH]).argmax(), "Earth barycentric peak compact vs full")
+    sample(np.linalg.norm(compact[:, SUN] - jpl[:, SUN], axis=-1).argmax(),
+           "Sun barycentric peak Cartesian compact vs DE440s")
+
+    with path.open("w", newline="\n") as out:
+        print(f"# DE440s SHA-256 {DE440S_SHA256}", file=out)
+        print("# JD TDB; native VSOP87E barycentric X,Y,Z (AU) for " + ", ".join(BODIES), file=out)
+        for jd, labels in sorted(cases.items()):
+            positions = jpl[np.searchsorted(dates, jd)]
+            print("# " + "; ".join(labels), file=out)
+            fields = [f"{jd:.17g}"] + [f"{value:.13e}" for value in positions.flat]
+            print(",".join(fields), file=out)
+
+
 def report(label, model, ref):
     print(f"\n### {label}\n")
     print("| Origin | Body | Max ″ | Mean ″ | RMS ″ | P95 ″ | P99 ″ | Max km |")
@@ -110,10 +172,9 @@ def report(label, model, ref):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("kernel", type=Path)
-    mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--fixture", type=Path, help="write the small DE440s regression fixture")
-    mode.add_argument("--models", type=Path, nargs=2, metavar=("FULL", "COMPACT"),
-                      help="compare two release builds of the vsop87_measure example")
+    parser.add_argument("--models", type=Path, nargs=2, required=True, metavar=("FULL", "COMPACT"),
+                        help="two release builds of the vsop87_measure example")
+    parser.add_argument("--fixture", type=Path, help="write the DE440s fixture instead of the report")
     args = parser.parse_args()
     with args.kernel.open("rb") as stream:
         digest = hashlib.file_digest(stream, "sha256").hexdigest()
@@ -122,21 +183,17 @@ def main():
 
     kernel = SPK.open(args.kernel)
     try:
-        if args.fixture is not None:
-            dates = np.r_[FIRST_JD, np.linspace(FIRST_JD + 17.25, END_JD - 81.0, 16), LAST_JD]
-            rows = np.column_stack([dates, reference(kernel, dates).reshape(len(dates), -1)])
-            with args.fixture.open("w") as out:
-                print(f"# DE440s SHA-256 {DE440S_SHA256}", file=out)
-                print("# JD TDB; native VSOP87E barycentric X,Y,Z (AU) for " + ", ".join(BODIES), file=out)
-                np.savetxt(out, rows, delimiter=",", fmt=["%.17g"] + ["%.13e"] * 27)
-            return
         dates = validation_dates(kernel)
         jpl = reference(kernel, dates)
     finally:
         kernel.close()
 
-    print(f"Evaluated {len(dates):,} distinct TDB epochs, JD {dates[0]} to {dates[-1]}.")
     full, compact = (compiled_model(path, dates) for path in args.models)
+    if args.fixture is not None:
+        write_fixture(args.fixture, dates, jpl, full, compact)
+        return
+
+    print(f"Evaluated {len(dates):,} distinct TDB epochs, JD {dates[0]} to {dates[-1]}.")
     report("Compact vs DE440s", compact, jpl)
     report("Full vs DE440s", full, jpl)
     report("Compact vs full", compact, full)

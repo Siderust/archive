@@ -4,7 +4,7 @@ The `vsop-compact` feature embeds positions for the Sun and eight planets over
 2020-01-01 through 2050-12-31 TDB (JD `[2458849.5, 2470172.5)`). Across 24,418
 sampled epochs, the largest geometric Earth-relative angular error against
 DE440s was **3.951″** (Neptune). The compact ESP32 application image used
-**172,592 bytes**, an **87.75%** reduction from the full VSOP87E harness.
+**176,192 bytes**, an **87.52%** reduction from the full VSOP87E harness.
 
 ## Model and truncation
 
@@ -25,17 +25,25 @@ axis budget. This gives an interval-wide Cartesian truncation bound relative
 to full VSOP87E in exact arithmetic, since each cosine has magnitude at most
 one. The generator retains source order within each polynomial block.
 
-Each body has a separate budget, applied independently to each axis. Equal
-axis budgets bound the vector error by the same amount in any direction.
-The budget reflects
-orbital distance and the corresponding angular sensitivity. For a
-geocentric vector, the two body budgets add and the angular sensitivity
-increases as distance decreases. Earth therefore has a tight budget, and
-Venus and Mars have smaller budgets than the outer planets. At a nominal
-minimum Venus distance of about 0.25 AU, the combined Cartesian bound
-`sqrt(3) * (1.5e-5 + 8e-6)` AU corresponds to about 33″ of truncation error.
-The Sun gets the smallest absolute budget because its SSB displacement can
-be short. These budgets were chosen using orbital scales and the term
+Each body has its own absolute omission budget `ε`, applied independently
+to each axis. If each component of the truncation error is bounded by `ε`,
+the Euclidean position-error bound is `√(ε² + ε² + ε²) = √3 ε` AU.
+For a target vector relative to an observer, the component bounds add by
+the triangle inequality. The resulting vector bound is
+`B = √3 (ε_target + ε_observer)` AU.
+
+For a full-model relative vector of length `d`, the angular deviation due
+to truncation is at most `arcsin(B / d)` when `B < d`. This is the angle
+to the tangent of the radius-`B` error sphere around the full-model
+vector tip. For Venus at a nominal Earth-relative distance of 0.25 AU,
+`B = √3 (1.5e-5 + 8e-6)` AU gives a bound of about 33″ at that distance.
+The bound grows at smaller distances, and Earth contributes to every
+geocentric subtraction. The Sun has the smallest absolute budget because
+its SSB displacement can be short. The analytical bounds describe
+truncation relative to full VSOP87E. The sampled DE440s errors below
+also include the full model's discrepancy with DE440s.
+
+These budgets were chosen using orbital scales and the term
 envelopes without fitting positions or residuals to any validation epochs.
 
 | Body | Omission budget per axis (AU) | Full terms | Compact X/Y/Z | Compact total |
@@ -100,10 +108,32 @@ difference norm for distance error. The epoch set combines a daily grid,
 one representable JD below the exclusive end), and six-hour samples within
 one day of local daily-grid elongation extrema and closest approaches in
 DE440s. The event search targets near conjunctions, oppositions and short
-Earth-relative distances. The sampled maxima apply to those dates and to geometric positions.
-Continuous-time DE440s error and complete pointing error require separate
-assessment. CI uses an 18-epoch DE440s fixture with both boundary cases and
-also checks the Cartesian budget against the full archive tables.
+Earth-relative distances. The sampled maxima apply to those dates and to
+geometric positions. Continuous-time DE440s error and complete pointing
+error require separate assessment.
+
+CI uses a 60-epoch subset of those samples. It includes both boundaries,
+the first sample at or after each of 16 evenly spaced interior dates, and
+the following stress cases selected by the fixture generator.
+
+- The smallest sampled Earth-relative solar elongation and distance for
+  each planet. For Mercury and Venus, the elongation search is run twice,
+  with geocentric distance below and above or equal to 1 AU, to cover
+  both inferior and superior conjunctions.
+- The largest sampled solar elongation for each outer planet to cover
+  near oppositions.
+- The largest sampled geocentric angular error for each applicable body
+  in each of three comparisons. Compact vs full isolates truncation,
+  full vs DE440s tracks the baseline, and compact vs DE440s measures their
+  combined effect. The fixture also includes two peak Earth barycentric
+  angular errors and the peak compact Sun barycentric Cartesian error
+  against DE440s.
+
+The script takes the earliest sample in a tie and annotates the CSV with the
+selection reasons, combining labels when a date serves several purposes.
+All stored positions come from DE440s. The compiled VSOP87E binaries select
+error peaks. CI tests the compact and full models against the same reference
+rows and checks the compact profile's per-axis omission budgets separately.
 
 The Sun's barycentric direction reaches about 29.5′ of error against
 DE440s even in full VSOP87E. This direction is sensitive to small absolute
@@ -130,19 +160,20 @@ throughput.
 | Linux x86-64 ELF | 1,862,184 B | 643,160 B |
 | Linux stripped ELF | 1,712,792 B | 504,808 B |
 | Linux linked `.rodata` | 1,285,692 B | 118,620 B |
-| Linux median latency (nine positions) | 892.330 µs | 46.526 µs |
-| Linux median throughput | 10,086 positions/s | 193,440 positions/s |
-| ESP32 linked ELF | 1,441,804 B | 207,864 B |
-| ESP32 application image | 1,409,392 B | 172,592 B |
-| ESP32 DROM `.rodata` | 1,258,736 B | 92,128 B |
-| ESP32 flash `.text` | 98,581 B | 41,433 B |
+| Linux median latency (nine positions) | 895.277 µs | 46.388 µs |
+| Linux median throughput | 10,053 positions/s | 194,017 positions/s |
+| ESP32 linked ELF | 1,445,696 B | 211,900 B |
+| ESP32 application image | 1,412,352 B | 176,192 B |
+| ESP32 DROM `.rodata` | 1,258,880 B | 92,184 B |
+| ESP32 flash `.text` | 101,553 B | 45,029 B |
 | ESP32 IRAM `.rwtext` + vectors | 15,396 B | 15,396 B |
-| ESP32 DRAM `.data` + `.bss` | 2,548 B | 2,548 B |
-| ESP32 linker-reserved stack | 194,060 B | 194,060 B |
+| ESP32 DRAM `.data` + `.bss` | 2,568 B | 2,568 B |
+| ESP32 linker-reserved stack | 194,040 B | 194,040 B |
 
 Desktop measurements use Rust 1.100.0, release defaults, GNU/Linux
 x86-64, an Intel Core Ultra 5 325, 4,096 nine-body epochs per run and the
-median of five runs. The ELF excludes linked VSOP87A tables in the full
+median of five runs. The unchecked compact benchmark retained identical
+`.text` and `.rodata` contents after the checked API was added. The ELF excludes linked VSOP87A tables in the full
 case and excludes all full arrays in the compact case. Full generated A
 and E data together contain 2,262,360 bytes of coefficients before linker
 garbage collection. The Linux `.rodata` reduction is within 288 bytes of the reduction in
@@ -152,11 +183,16 @@ profiles link essentially one copy of each retained coefficient.
 ESP32 measurements use `xtensa-esp32-none-elf`, espup 0.19.0's
 `esp` Rust 1.97.0-nightly (8ea53bcd7, Espressif 1.97.0.0), esp-hal 1.2.2
 and espflash 4.7.0. The harness uses a 4 MiB physical flash configuration
-and a 2 MiB factory application slot. The compact image consumes 8.23%
-of that slot. It also fits a standard 1 MiB factory slot (16.46%), where
+and a 2 MiB factory application slot. The compact image consumes 8.40%
+of that slot. It also fits a standard 1 MiB factory slot (16.80%), where
 the full image exceeds capacity. The application image sizes include
 segment padding and exclude bootloader and partition-table bytes.
-DROM is mapped from flash, and IRAM and DRAM use on-chip RAM.
+DROM data and flash executable code occupy separate mapped regions. IRAM
+code and DRAM data use on-chip RAM. These are the standalone benchmark
+images. The initial single-trial harness used 1,409,392 B full and
+172,592 B compact. The repeated-trial harness adds timing and summary code.
+The profile still retains 3,183 terms and the checked entry points are
+discarded from the benchmark image because it calls the unchecked API.
 [ESP-IDF partition documentation](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/partition-tables.html).
 
 ESP32 firmware was cross-compiled and converted to flash images. No board
@@ -164,8 +200,15 @@ was available to measure runtime latency, flash-cache behavior or peak
 stack usage. The stack row is a linker reservation. The linked ESP32
 ELFs use software double-precision arithmetic helpers. Device throughput
 depends on their cost on the Xtensa core. Compact evaluates 3,183 cosines
-per nine-body epoch instead of 51,823. The firmware harness reports elapsed
-microseconds over 128 epochs on UART when run on hardware.
+per nine-body epoch instead of 51,823.
+
+The firmware pins the CPU to 80 MHz for both profiles. It runs seven trials
+of 128 epochs with nine body evaluations per epoch, for 8,064 timed
+positions per image. Each trial warms up at eight grid dates. Both the
+date and result pass through `black_box` and UART output starts after all
+trials. The harness prints the sorted trial totals, the mean microseconds
+per position, and the median trial's microseconds per position. Timing
+includes the shared epoch loop and the three-coordinate position calls.
 
 ## Reproduce
 
@@ -209,7 +252,7 @@ curl -fL https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de440s.b
 "$out/venv/bin/python" scripts/validate_compact_vsop87.py "$out/de440s.bsp" \
   --models "$out/vsop" "$out/vsop-compact"
 "$out/venv/bin/python" scripts/validate_compact_vsop87.py "$out/de440s.bsp" \
-  --fixture "$out/de440s_vsop87e.csv"
+  --models "$out/vsop" "$out/vsop-compact" --fixture "$out/de440s_vsop87e.csv"
 cmp "$out/de440s_vsop87e.csv" tests/fixtures/de440s_vsop87e.csv
 ```
 
@@ -233,11 +276,17 @@ for profile in vsop vsop-compact; do
 done
 ```
 
-With a board attached, use `espflash flash --monitor --chip esp32 --flash-size 4mb
---flash-mode dio --flash-freq 40mhz --partition-table "$out/partitions.csv"
-"$out/vsop-compact.elf"` and then repeat with the full ELF. Divide the
-printed time by 128 for nine-body latency. The sample uses the HAL default
-clock configuration. Measure both variants on the same board and clock.
+Attach the ESP32-WROOM-32 board and run both images on that same board.
+For each image, capture the UART summary after reset.
+
+```sh
+for profile in vsop vsop-compact; do
+  espflash flash --monitor --chip esp32 --flash-size 4mb --flash-mode dio \
+    --flash-freq 40mhz --partition-table "$out/partitions.csv" "$out/$profile.elf"
+done
+```
+
+Exit the serial monitor after each summary to continue to the next image.
 
 ## Downstream integration
 
@@ -245,8 +294,9 @@ clock configuration. Measure both variants on the same board and clock.
 the compact backend through its own Cargo feature and move its unconditional
 archive `vsop` activation behind its full backend feature. Cargo unifies
 features of the same archive version, so any other dependency activating
-`vsop` will also generate full tables. The compact wrapper should pass TDB,
-preserve the SSB origin, and apply the existing native-VSOP87-to-canonical
+`vsop` will also generate full tables. The compact wrapper should pass TDB to
+the checked `try_*` functions and propagate `CompactEphemerisError`. It
+should preserve the SSB origin and apply the existing native-VSOP87-to-canonical
 frame transform. It should provide the frame, light-time and observer
 handling appropriate to its pointing API. Lunar compaction is tracked in
 [archive#6](https://github.com/Siderust/archive/issues/6). The embedded
