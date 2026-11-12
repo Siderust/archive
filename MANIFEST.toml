@@ -27,7 +27,7 @@ status    = "pending-migration"
 id        = "elp2000"
 manifest  = "src/elp/manifest.toml"
 kind      = "lunar-theory"
-status    = "pending-migration"
+status    = "active"
 
 [[family]]
 id        = "pluto"

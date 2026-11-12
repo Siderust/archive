@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses Semantic Versioni
 
 ## [Unreleased]
 
+## [0.1.8]
+
+### Added
+- Optional `elp-compact` feature for embedded, checked Earth-centered lunar
+  positions over 2020–2050, with independent geocentric and topocentric
+  validation against DE440s.
+
 ## [0.1.7]
 
 ### Added

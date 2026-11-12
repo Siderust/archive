@@ -1,6 +1,6 @@
 [package]
 name = "siderust-archive"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 authors = ["Vallés Puig, Ramon <vallespuigramon@gmail.com>"]
 license = "BSD-3-Clause"
@@ -32,6 +32,8 @@ vsop = []
 vsop-compact = ["dep:libm"]
 # ELP2000-82B lunar theory tables (build-time generated).
 elp = []
+# Compact ELP2000-82B lunar position, 2020–2050.
+elp-compact = ["dep:libm"]
 # IERS time-scale data: UTC-TAI, ΔT, EOP types and parsers.
 time = ["bundled-time"]
 # Compiled UTC-TAI / ΔT fallback snapshot (no network).
