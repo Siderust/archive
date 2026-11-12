@@ -55,9 +55,8 @@ pub struct Vsop87 {
 
 /// Generated VSOP87A coefficient tables.
 ///
-/// The arrays within this module are produced by the build pipeline
-/// ([`pipeline`]) from the raw IMCCE data files.  Each static is named
-/// `{PLANET}_{AXIS}{T_POWER}`, e.g. `EARTH_X0`, `MARS_Y3`.
+/// The arrays within this module are generated at build time from the raw IMCCE data
+/// files. Each static is named `{PLANET}_{AXIS}{T_POWER}`, e.g. `EARTH_X0`, `MARS_Y3`.
 #[allow(clippy::all, unreachable_pub, dead_code)]
 pub mod vsop87a_data {
     include!(concat!(env!("OUT_DIR"), "/vsop87a.rs"));

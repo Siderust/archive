@@ -6,6 +6,16 @@ The format is based on Keep a Changelog, and this project uses Semantic Versioni
 
 ## [Unreleased]
 
+## [0.1.6]
+
+### Fixed
+- Restore the all-features docs.rs build with the supported rustdoc feature gate.
+- Validate and synchronize the release commit, tag, crates.io package, and GitHub Release.
+- Retry transient IERS/USNO download failures and retain the committed provenance when scientific data are unchanged.
+
+### Changed
+- Include the IERS/USNO snapshot updates merged on main since the 0.1.5 release.
+
 ## [0.1.5] - 2026-09-29
 
 ### Added

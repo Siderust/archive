@@ -1,0 +1,54 @@
+name: Archive Release
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        type: string
+        required: true
+      version:
+        type: string
+        default: ""
+    secrets:
+      CARGO_REGISTRY_TOKEN:
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    concurrency:
+      group: archive-main-release
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      GIT_AUTHOR_NAME: github-actions[bot]
+      GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+      GIT_COMMITTER_NAME: github-actions[bot]
+      GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.mode == 'auto' && 'main' || github.sha }}
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Refresh or publish
+        env:
+          RELEASE_MODE: ${{ inputs.mode }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: python3 scripts/archive-release.py "$RELEASE_MODE" --version "$RELEASE_VERSION"
+
+  invalid-ref:
+    if: github.ref != 'refs/heads/main'
+    permissions: {}
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "::error::Dispatch archive maintenance and publication from main."
+          exit 1

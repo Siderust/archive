@@ -140,32 +140,114 @@ Large mutable datasets need a reviewed process before they become automated.
 
 ## Time-Data Maintenance
 
-IERS/USNO time data are operational data. The weekly
-[`Update Time Data`](https://github.com/Siderust/archive/actions/workflows/update-time-data.yml)
-workflow may refresh only:
+[Update Time Data](https://github.com/Siderust/archive/actions/workflows/update-time-data.yml)
+runs Mondays at 05:23 UTC and can also be dispatched from `main`. It refreshes
+`UTC-TAI.history`, `deltat.data`, `deltat.preds`, and `finals2000A.all` under
+`src/time/eop/raw/`. Other dataset families use their reviewed, version-pinned
+maintenance procedures.
 
-- `src/time/eop/raw/`
-- `src/time/eop/manifest.toml`
-- `src/time/bundled/snapshot.rs`
+The updater stages all four downloads, checks parsing and coverage against the
+committed data, and compares the scientific files byte for byte. A changed
+snapshot carries the fetch time and SHA-256 hashes in
+`time_data.provenance.toml`. It also updates the checksum and byte-count
+entries in `src/time/eop/manifest.toml` and regenerates
+`src/time/bundled/snapshot.rs`. Identical payloads retain the committed
+provenance and generated files. The workflow validates the manifest and runs
+the all-features tests before it can commit a refresh.
 
-The snapshot carries TOML provenance in `time_data.provenance.toml`. After
-refreshing raw files, the updater rewrites the managed `[[files]]` block in
-`src/time/eop/manifest.toml` with current SHA-256 checksums and byte counts
-so `archive-validate` can verify every committed payload. The workflow
-validates manifests before committing or publishing. Runtime fetch is still
-available behind `features = ["fetch"]` for users who want current upstream
-data without waiting for the next committed snapshot.
-
-Other archive families are manual/version-pinned. The time-data workflow must
-not replace JPL kernels, VSOP/ELP, nutation, gravity, atmosphere, frames,
-constants, or derived kernels.
+Transient download failures get up to three attempts per source, each limited
+to 60 seconds, with 2- and 4-second backoff. Transport failures, invalid payloads,
+and regressed coverage fail the refresh and preserve the committed snapshot.
+The job summary reports the changed datasets, validation, and publication
+status. Runtime fetch remains available with the `fetch` feature.
 
 ## Releases
 
-Manual releases should update [CHANGELOG.md](CHANGELOG.md) before tagging.
-Automated IERS/USNO data-refresh patch releases add a generated changelog
-entry for the new patch version and only publish when validation, tests, the
-WIP guard, and crates.io credentials all pass.
+The package version in `Cargo.toml` selects the corresponding entry in
+`Cargo.lock` and the exact annotated `vMAJOR.MINOR.PATCH` tag. The tag identifies
+the release commit. The crates.io index and package checksum establish whether
+that version has been published. The GitHub Release uses the matching
+`CHANGELOG.md` section as its notes.
+
+Both workflows call the same release workflow and share a concurrency group.
+They use GitHub Actions' `GITHUB_TOKEN` with `contents: write` for authorized Git
+pushes and GitHub Releases. Configure `CARGO_REGISTRY_TOKEN` as a repository
+Actions secret with permission to publish `siderust-archive` on crates.io.
+The workflow carries publication through in the same run because GitHub
+suppresses follow-on workflows for pushes made with its workflow token.
+
+### Automatic patch releases
+
+A fresh scientific payload change can produce a patch when the exact tag
+matching the current Cargo version is on `main`, its crate and GitHub Release
+exist, and every intervening commit changes only the approved time-data paths.
+The refreshed scientific files must also differ from those at that tag. The
+workflow checks the published package's Git commit before selecting a new
+patch. It blocks on missing or divergent tags, version mismatches, and
+non-data commits, including changes later reverted. A blocked baseline can
+still allow a validated data-only commit on `main`.
+
+After manifest validation, tests, Cargo packaging, and the packaged docs.rs
+check, the workflow pushes the snapshot commit, release commit, and annotated
+tag together. The push is a normal fast-forward and honors branch and tag
+rules. If repository rules require review for those commits, prepare the
+snapshot and release metadata in a PR and use the manual procedure after
+merging it. A normal refresh with unchanged payloads produces no new patch.
+
+### Manual releases and retries
+
+1. Review and merge a PR that sets the desired version in `Cargo.toml` and
+   `Cargo.lock` and adds its notes under `## [VERSION]` in `CHANGELOG.md`.
+   Confirm CI is green for the intended commit on `main`.
+2. Run [Publish](https://github.com/Siderust/archive/actions/workflows/publish.yml)
+   on `main` with the bare version (for example, `0.1.6`). With an
+   authenticated GitHub CLI, use
+   `gh workflow run publish.yml --repo Siderust/archive --ref main -f version=0.1.6`.
+   The workflow validates the candidate, then creates the annotated tag,
+   publishes to crates.io, verifies the registry package, and creates the
+   GitHub Release.
+3. Inspect the job summary and compare the tagged commit and GitHub Release
+   notes. Verify the version on crates.io and check the corresponding docs.rs
+   build.
+
+If a release fails after the tag is reserved, dispatch **Publish** with the
+same version. An existing tag on `main` is reused, even if `main` has advanced.
+When crates.io already has that version, the workflow verifies the archive
+checksum and embedded Git commit before creating any missing GitHub Release.
+A yanked version or a package whose source differs from the tag requires
+maintainer investigation. If a patch fails before its atomic push, rerun
+**Update Time Data** to re-fetch and validate the snapshot. For a manual
+release with no reserved tag, rerun **Publish** after fixing the reported
+problem. Preserve all existing release tags and versions.
+
+### Recovering from the divergent v0.1.5 tag
+
+The published `0.1.5` crate identifies commit `56954e4`, the commit tagged
+`v0.1.5`. Its history and `main` forked at `ae8951c`. The tag branch contains
+the release and lockfile commits, while `main` took the squash-merged
+`no_std` PR (`921f7f3`) and later snapshot refreshes. The old guard selected
+the reachable `v0.1.4` and skipped publication because the newer history
+included code changes. See the
+[blocked run](https://github.com/Siderust/archive/actions/runs/42631146720).
+
+Preserve `v0.1.5` and its crates.io package. Use the manual procedure above with
+`0.1.6` once the recovery PR is merged and CI passes. Verify the
+[crate](https://crates.io/crates/siderust-archive/0.1.6),
+[GitHub Release](https://github.com/Siderust/archive/releases/tag/v0.1.6), and
+[docs.rs builds](https://docs.rs/crate/siderust-archive/0.1.6/builds).
+The next eligible refresh uses the reachable `v0.1.6` as its baseline.
+
+### Investigating docs.rs builds
+
+Open the failed build log on the crate's docs.rs Builds page and identify its
+nightly revision. CI runs `bash scripts/check-packaged-docs.sh` from a clean
+checkout with stable and nightly Rust installed. The script unpacks the
+Cargo package and runs offline rustdoc with `DOCS_RS=1`, `--cfg docsrs`, and
+all features enabled, so missing inputs to the scientific table generators
+fail before release. Use the matching nightly when investigating a
+toolchain-specific failure. The
+[0.1.5 log](https://docs.rs/crate/siderust-archive/0.1.5/builds/4646880) shows
+that Rust removed `doc_auto_cfg` and folded it into `doc_cfg`.
 
 ## License
 
