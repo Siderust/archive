@@ -6,6 +6,13 @@ The format is based on Keep a Changelog, and this project uses Semantic Versioni
 
 ## [Unreleased]
 
+## [0.1.7]
+
+### Added
+- Optional `vsop-compact` feature for allocation-free, embedded VSOP87E Sun
+  and planetary positions over 2020–2050, with DE440s validation and size
+  measurements for desktop and ESP32 builds.
+
 ## [0.1.6]
 
 ### Fixed

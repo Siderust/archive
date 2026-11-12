@@ -1,19 +1,14 @@
-# VSOP87 planetary theory.
-#
-# Status: pending raw-file migration. The siderust crate currently embeds the
-# coefficients in src/data/compiled/vsop87[ae].rs. The migration plan is to
-# place the upstream IMCCE distribution files in raw/ alongside this manifest
-# and rebuild the embedded tables (or a tiny on-disk binary) from them.
+# Upstream inputs for full VSOP87A/E and the compact VSOP87E profile.
 
 schema_version    = 1
 dataset_id        = "vsop87"
 dataset_kind      = "planetary-theory"
 source            = "Bretagnon, P. and Francou, G. (1988). VSOP87 (IMCCE)"
-generator         = "siderust/import-vsop87"
-generator_version = "pending"
+generator         = "siderust-archive/src/vsop/pipeline.rs"
+generator_version = "0.1.7"
 generated_at      = "2026-05-28T00:00:00Z"
 time_scale        = "TDB-compatible JD"
-frame             = "EclipticMeanJ2000"
+frame             = "Native VSOP87 dynamical ecliptic and equinox of J2000.0"
 center            = "Sun (A), Solar-System-Barycenter (E)"
 units             = "AU, day"
 valid_from_jd     = 625296.5
@@ -21,11 +16,119 @@ valid_to_jd       = 2816787.5
 dynamical_model   = "VSOP87 versions A (heliocentric rectangular) and E (barycentric rectangular)"
 
 notes = """
-Raw upstream files (`VSOP87A.ear`, `VSOP87E.ear`, …) are not yet committed.
-Once added under `raw/`, populate the `[[files]]` array and run the validator
-to record SHA-256 digests.
+The full A and E series use the unchanged upstream coefficients. The optional
+compact E profile covers JD TDB [2458849.5, 2470172.5) with body-specific Cartesian
+omission budgets. See reports/compact-vsop87.md for validation and reproducibility.
 """
 
 [[references]]
 citation = "Bretagnon, P., Francou, G. (1988). Planetary theories in rectangular and spherical variables. VSOP87 solutions. Astronomy & Astrophysics 202, 309-315."
 url      = "https://ftp.imcce.fr/pub/ephem/planets/vsop87/"
+
+[[files]]
+path   = "raw/VSOP87A.ear"
+format = "vsop87-text"
+sha256 = "69d0b4c7525f094a03099e64558321eb64f2402a478472ee537239bcc59b7cb6"
+bytes  = 472948
+
+[[files]]
+path   = "raw/VSOP87A.emb"
+format = "vsop87-text"
+sha256 = "992349a8883548a635ad4916023bec8f506e8d3dc8aace8d15964f5e57cab375"
+bytes  = 444220
+
+[[files]]
+path   = "raw/VSOP87A.jup"
+format = "vsop87-text"
+sha256 = "212bcea552e759fa0a9d732680c05120de2c15d36049b2f6d115ceb25b03d405"
+bytes  = 592116
+
+[[files]]
+path   = "raw/VSOP87A.mar"
+format = "vsop87-text"
+sha256 = "2c1e9b5cd68276138c2f99506d348e626abe0a5c600b4e50bb588d568b0d13fe"
+bytes  = 943103
+
+[[files]]
+path   = "raw/VSOP87A.mer"
+format = "vsop87-text"
+sha256 = "01f6f82af31f347fc50affaa920d653e441fc74f2b4738166528adc4c78fa870"
+bytes  = 848141
+
+[[files]]
+path   = "raw/VSOP87A.nep"
+format = "vsop87-text"
+sha256 = "4ad09bd799336d8f76dcf6f98be57c45d7289db134556c204f098d6bbf888f3a"
+bytes  = 352450
+
+[[files]]
+path   = "raw/VSOP87A.sat"
+format = "vsop87-text"
+sha256 = "2e72d18684246e2ecd143e35736b45b101cdd06bbcaf2f2502e348c233abff29"
+bytes  = 1001490
+
+[[files]]
+path   = "raw/VSOP87A.ura"
+format = "vsop87-text"
+sha256 = "6fb9626c770eb9972a86050e151cc866e703f503261c79ba0691160e727bf0b9"
+bytes  = 705299
+
+[[files]]
+path   = "raw/VSOP87A.ven"
+format = "vsop87-text"
+sha256 = "ecaeceff071db6692820d962ffabfdb7de438db44145bfe0cbcda70f8dbed2a8"
+bytes  = 315875
+
+[[files]]
+path   = "raw/VSOP87E.ear"
+format = "vsop87-text"
+sha256 = "d0781ee55a8215787c5d3dfc020a4c9f2ca61c1dbd8f7d67d5a96e6f7b47b5cb"
+bytes  = 741342
+
+[[files]]
+path   = "raw/VSOP87E.jup"
+format = "vsop87-text"
+sha256 = "cad69c1c50a9e0e37192cd8de2cc03d91f29fd895b57650e226326d6bda0af65"
+bytes  = 606480
+
+[[files]]
+path   = "raw/VSOP87E.mar"
+format = "vsop87-text"
+sha256 = "77977d409aa3a88c24321a47634dbd55a9afdc799a179977e7ab1919339da36e"
+bytes  = 1009869
+
+[[files]]
+path   = "raw/VSOP87E.mer"
+format = "vsop87-text"
+sha256 = "edc57deaaaab9a44f08de65446ec059d10f8317d54c8985165068cd4e2f0c69e"
+bytes  = 1050434
+
+[[files]]
+path   = "raw/VSOP87E.nep"
+format = "vsop87-text"
+sha256 = "031d196efcd59347f2d770bb04aab59d57e494aee4750c6f6d9dc377311ed29b"
+bytes  = 319599
+
+[[files]]
+path   = "raw/VSOP87E.sat"
+format = "vsop87-text"
+sha256 = "e32bee854f545af10f97291a4fe185fdd0ce1bd2727b92b1455f0cd5e610b70e"
+bytes  = 1002820
+
+[[files]]
+path   = "raw/VSOP87E.sun"
+format = "vsop87-text"
+sha256 = "ef9fe6239d8c2c9b451dfd8dfa5fbaf1427003cf0d58e995a3c36c4e590cfbbc"
+bytes  = 884716
+
+[[files]]
+path   = "raw/VSOP87E.ura"
+format = "vsop87-text"
+sha256 = "993d97d76b69a84207402c4a9a2c78a65efbb406f80bfdcc2467357a5e1a8f12"
+bytes  = 683487
+
+[[files]]
+path   = "raw/VSOP87E.ven"
+format = "vsop87-text"
+sha256 = "f50c1adb4bf1fe0bb3282cdccabaa1998e2b6e0f64e2aa347300db87ae3ede95"
+bytes  = 621775

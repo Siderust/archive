@@ -1,6 +1,6 @@
 [package]
 name = "siderust-archive"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 authors = ["Vallés Puig, Ramon <vallespuigramon@gmail.com>"]
 license = "BSD-3-Clause"
@@ -28,6 +28,8 @@ std = [
 ]
 # VSOP87A/E planetary theory tables (build-time generated).
 vsop = []
+# Compact VSOP87E positions for 2020–2050.
+vsop-compact = ["dep:libm"]
 # ELP2000-82B lunar theory tables (build-time generated).
 elp = []
 # IERS time-scale data: UTC-TAI, ΔT, EOP types and parsers.
@@ -55,6 +57,7 @@ lagrange = []
 pluto = []
 
 [dependencies]
+libm = { version = "0.2", optional = true }
 qtty = { version = "0.8", default-features = false, features = ["astro", "density", "alloc"] }
 chrono = { version = "0.4", default-features = false, features = ["alloc"] }
 serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
@@ -76,3 +79,11 @@ required-features = ["fetch"]
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
+
+[dev-dependencies]
+# Use the same scalar cosine in the full and compact measurement binaries.
+libm = "0.2"
+# Reuse the host generator in its integration tests.
+anyhow = "1"
+regex = "1"
+walkdir = "2"
