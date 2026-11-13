@@ -13,6 +13,13 @@ use anyhow::{Context, Result};
 use regex::Regex;
 use std::fmt::Write;
 
+#[cfg(feature = "elp-compact")]
+#[path = "compact_codegen.rs"]
+mod compact_codegen;
+#[cfg(feature = "elp-compact")]
+#[path = "lunar_math.rs"]
+mod lunar_math;
+
 /// Compute a stable SHA-256 fingerprint of the ELP2000 input dataset
 /// directory by hashing every `ELP*` file in sorted name order.
 ///
@@ -182,6 +189,7 @@ fn parse_all_elps(dir: &Path) -> Result<BTreeMap<String, Vec<Entry>>> {
 // ----------------------  RUST CODE GENERATOR  -------------------
 
 /// Provenance fields embedded as a comment header in the generated file.
+#[cfg(feature = "elp")]
 #[derive(Debug, Clone, Default)]
 struct ElpProvenance {
     source_url: String,
@@ -190,6 +198,7 @@ struct ElpProvenance {
     byte_count: u64,
 }
 
+#[cfg(feature = "elp")]
 fn generate_rust(
     data: &BTreeMap<String, Vec<Entry>>,
     prov: Option<&ElpProvenance>,
@@ -276,6 +285,7 @@ fn generate_rust(
 }
 
 /// ---------------------------  ENTRYPOINT  -----------------------
+#[cfg(feature = "elp")]
 #[allow(dead_code)]
 pub(crate) fn run(data_dir: &Path) -> Result<()> {
     let out_dir = PathBuf::from(env::var("OUT_DIR")?);
@@ -306,45 +316,49 @@ pub(crate) fn run(data_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Like [`run`] but writes `elp_data.rs` to `gen_dir` instead of `OUT_DIR`.
-///
-/// Used by `build.rs` when `SIDERUST_REGEN=1` to overwrite the committed
-/// table in `src/archive/`. Verifies the input dataset SHA-256 against
-/// the `SIDERUST_ELP2000_SHA256` environment variable when set, and
-/// embeds the SHA-256 + retrieval timestamp as a comment header in the
-/// emitted `elp_data.rs`.
-///
-/// No network access is performed. Place ELP1..ELP36 files in
-/// `src/elp/raw/` before running.
+/// Generate the requested ELP profiles from the bundled source files.
 pub(crate) fn run_regen(data_dir: &Path, gen_dir: &Path) -> Result<()> {
     if !data_dir.exists() || is_empty_dir(data_dir)? {
-        println!(
-            "cargo:warning=ELP2000: raw data absent at {}; writing empty stub.",
-            data_dir.display()
-        );
-        fs::create_dir_all(gen_dir)?;
-        fs::write(
-            gen_dir.join("elp_data.rs"),
-            "// No ELP2000 data: raw files absent from src/elp/raw/.\n",
-        )?;
-        return Ok(());
+        #[cfg(feature = "elp-compact")]
+        anyhow::bail!("Compact ELP2000: raw files absent from {data_dir:?}");
+        #[cfg(not(feature = "elp-compact"))]
+        {
+            println!(
+                "cargo:warning=ELP2000: raw data absent at {}; writing empty stub.",
+                data_dir.display()
+            );
+            fs::create_dir_all(gen_dir)?;
+            fs::write(
+                gen_dir.join("elp_data.rs"),
+                "// No ELP2000 data: raw files absent from src/elp/raw/.\n",
+            )?;
+            return Ok(());
+        }
     }
 
     let (sha, bytes) = dataset_sha256(data_dir)?;
     eprintln!("ELP2000: dataset SHA-256 = {sha} ({bytes} bytes across all files)");
     check_pinned_sha256(&sha, "SIDERUST_ELP2000_SHA256")?;
 
-    let prov = ElpProvenance {
-        source_url: "https://cdsarc.cds.unistra.fr/ftp/VI/79/".to_string(),
-        sha256_hex: sha,
-        retrieved_at: iso8601_now(),
-        byte_count: bytes,
-    };
-
     let parsed = parse_all_elps(data_dir)?;
-    let code = generate_rust(&parsed, Some(&prov))?;
     fs::create_dir_all(gen_dir)?;
-    fs::write(gen_dir.join("elp_data.rs"), code.as_bytes())?;
+    #[cfg(feature = "elp-compact")]
+    fs::write(
+        gen_dir.join("elp_compact.rs"),
+        compact_codegen::generate(&parsed, &sha)?,
+    )?;
+
+    #[cfg(feature = "elp")]
+    {
+        let prov = ElpProvenance {
+            source_url: "https://cdsarc.cds.unistra.fr/ftp/VI/79/".to_string(),
+            sha256_hex: sha,
+            retrieved_at: iso8601_now(),
+            byte_count: bytes,
+        };
+        let code = generate_rust(&parsed, Some(&prov))?;
+        fs::write(gen_dir.join("elp_data.rs"), code.as_bytes())?;
+    }
     Ok(())
 }
 
@@ -352,6 +366,7 @@ fn is_empty_dir(dir: &Path) -> Result<bool> {
     Ok(fs::read_dir(dir)?.next().is_none())
 }
 
+#[cfg(feature = "elp")]
 fn iso8601_now() -> String {
     use std::time::SystemTime;
     let secs = SystemTime::now()
@@ -374,4 +389,32 @@ fn iso8601_now() -> String {
     let m = if mp < 10 { mp + 3 } else { mp - 9 } as u8;
     let year = (y + if m <= 2 { 1 } else { 0 }) as i32;
     format!("{year:04}-{m:02}-{d:02}T{hour:02}:{minute:02}:{second:02}Z")
+}
+
+#[cfg(all(test, feature = "elp-compact"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compact_generation_matches_build_output() {
+        let raw = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/elp/raw");
+        let (sha, _) = dataset_sha256(&raw).unwrap();
+        assert_eq!(sha, siderust_archive::elp_compact::SOURCE_SHA256);
+        let parsed = parse_all_elps(&raw).unwrap();
+        assert_eq!(parsed.len(), 36);
+        assert_eq!(parsed.values().map(Vec::len).sum::<usize>(), 37_872);
+        let source = compact_codegen::generate(&parsed, &sha).unwrap();
+        assert_eq!(
+            source,
+            include_str!(concat!(env!("OUT_DIR"), "/elp_compact.rs"))
+        );
+        assert_eq!(source.matches("MainTerm {").count(), 336);
+        assert_eq!(
+            source
+                .lines()
+                .filter(|line| line.starts_with("        ["))
+                .count(),
+            121
+        );
+    }
 }

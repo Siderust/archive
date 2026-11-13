@@ -84,7 +84,8 @@ workspace when used through a local `path` dependency.
 | `jpl` | JPL DE440/DE441 ephemeris metadata; download/cache needs `fetch`. |
 | `vsop` | Full VSOP87A/E planetary theory tables. |
 | `vsop-compact` | Compact VSOP87E positions for the Sun and eight planets, 2020–2050. |
-| `elp` | ELP2000-82B lunar theory tables. |
+| `elp` | Full ELP2000-82B lunar theory tables. |
+| `elp-compact` | Compact Earth-centered lunar position, 2020–2050. |
 | `nutation` | IAU 2000A/2000B nutation coefficient tables. |
 | `gravity` | Low-degree EGM2008 geopotential coefficients. |
 | `atmosphere` | NRLMSISE-00 lite atmosphere-density table. |
@@ -111,6 +112,22 @@ no runtime I/O or allocation.
 
 The [validation report](reports/compact-vsop87.md) includes accuracy, linked
 size, performance, source checksums, and reproduction commands.
+
+## Compact embedded lunar position
+
+```toml
+siderust-archive = { version = "0.1.8", default-features = false, features = ["elp-compact"] }
+```
+
+`elp_compact::try_moon_geocentric(jd_tdb)` returns a geometric Cartesian
+Earth-to-Moon vector in kilometers in the native ELP2000-82B mean dynamical
+ecliptic and inertial equinox of J2000.0. The checked API accepts finite TDB
+Julian dates from 2020-01-01 through 2050-12-31. Subtract the observer's vector
+in the same frame to include geometric lunar parallax. Enable
+`vsop-compact` alongside it for planetary positions.
+
+The [lunar validation report](reports/compact-lunar-ephemeris.md) documents
+distance and pointing errors, the native frame, and firmware measurements.
 
 ## Archive Layout
 

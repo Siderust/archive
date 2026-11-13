@@ -10,6 +10,8 @@ publish = false
 default = ["vsop-compact"]
 vsop = ["siderust-archive/vsop", "dep:libm"]
 vsop-compact = ["siderust-archive/vsop-compact"]
+elp = ["siderust-archive/elp", "dep:libm"]
+elp-compact = ["siderust-archive/elp-compact"]
 
 [dependencies]
 siderust-archive = { path = "../..", default-features = false }

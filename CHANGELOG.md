@@ -6,16 +6,17 @@ The format is based on Keep a Changelog, and this project uses Semantic Versioni
 
 ## [Unreleased]
 
-## [0.1.7]
+## [0.2.0] - 2026-11-13
 
 ### Added
+- Optional `elp-compact` feature for embedded, checked Earth-centered lunar
+  positions over 2020–2050, with independent geocentric and topocentric
+  validation against DE440s.
 - Optional `vsop-compact` feature for allocation-free, embedded VSOP87E Sun
   and planetary positions over 2020–2050, with DE440s validation and size
   measurements for desktop and ESP32 builds.
 - Checked compact position functions reject non-finite or out-of-range TDB
   Julian dates. The direct body functions remain available for unchecked use.
-
-## [0.1.6]
 
 ### Fixed
 - Restore the all-features docs.rs build with the supported rustdoc feature gate.

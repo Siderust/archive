@@ -11,8 +11,21 @@ use core::panic::PanicInfo;
 use esp_hal::{clock::CpuClock, time::Instant};
 use esp_println::println;
 
+#[cfg(any(feature = "vsop", feature = "vsop-compact"))]
 #[path = "../../../examples/support/vsop87_models.rs"]
 mod models;
+
+#[cfg(any(feature = "elp", feature = "elp-compact"))]
+#[path = "../../../examples/support/lunar_models.rs"]
+mod lunar_models;
+
+#[cfg(not(any(
+    feature = "vsop",
+    feature = "vsop-compact",
+    feature = "elp",
+    feature = "elp-compact"
+)))]
+compile_error!("select a planetary or lunar profile");
 
 esp_bootloader_esp_idf::esp_app_desc!();
 
@@ -42,14 +55,18 @@ fn panic(info: &PanicInfo<'_>) -> ! {
 }
 
 const EPOCHS: u32 = 128;
-const BODIES: u64 = 9;
+const BODIES: u64 = 9 * cfg!(any(feature = "vsop", feature = "vsop-compact")) as u64
+    + cfg!(any(feature = "elp", feature = "elp-compact")) as u64;
 const TRIALS: usize = 7;
 
 fn evaluate_epoch(index: u32) {
     const START: f64 = 2_458_849.5;
     const END: f64 = 2_470_172.5;
     let jd = START + (END - START) * f64::from(index) / f64::from(EPOCHS);
+    #[cfg(any(feature = "vsop", feature = "vsop-compact"))]
     black_box(models::positions(black_box(jd)));
+    #[cfg(any(feature = "elp", feature = "elp-compact"))]
+    black_box(lunar_models::moon(black_box(jd)));
 }
 
 #[esp_hal::main]
