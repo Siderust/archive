@@ -7,7 +7,8 @@
 //! dataset in the archive carries: where the data came from, which tool
 //! produced the derived artefact, and when it was generated.
 //!
-//! Domain-specific provenance types (e.g. [`crate::time::TimeDataProvenance`])
+//! Domain-specific provenance types, such as `TimeDataProvenance` with the
+//! `time` feature enabled,
 //! extend or complement this with additional per-format fields.
 
 use alloc::string::String;

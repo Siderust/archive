@@ -12,7 +12,7 @@
 //! By default the crate enables the `std` feature. For `no_std` + `alloc`:
 //!
 //! ```toml
-//! siderust-archive = { version = "0.1", default-features = false }
+//! siderust-archive = { version = "0.2.0", default-features = false }
 //! ```
 //!
 //! Filesystem, network, environment-variable, and OS I/O APIs require `std`.
@@ -44,19 +44,19 @@
 //!
 //! ```toml
 //! # Manifest + checksum only (with std):
-//! siderust-archive = "0.1"
+//! siderust-archive = "0.2.0"
 //!
 //! # no_std + alloc (manifest, checksum, provenance, scientific tables):
-//! siderust-archive = { version = "0.1", default-features = false }
+//! siderust-archive = { version = "0.2.0", default-features = false }
 //!
 //! # IERS time data with offline fallback:
-//! siderust-archive = { version = "0.1", features = ["time"] }
+//! siderust-archive = { version = "0.2.0", features = ["time"] }
 //!
 //! # Full runtime IERS download + JPL ephemeris manager (requires std):
-//! siderust-archive = { version = "0.1", features = ["fetch"] }
+//! siderust-archive = { version = "0.2.0", features = ["fetch"] }
 //!
 //! # VSOP87 planetary theory tables:
-//! siderust-archive = { version = "0.1", features = ["vsop"] }
+//! siderust-archive = { version = "0.2.0", features = ["vsop"] }
 //! ```
 //!
 //! ## Modules
@@ -67,17 +67,19 @@
 //! | [`checksum`]  | always on    | SHA-256 hex helpers and mismatch error. |
 //! | [`provenance`]| always on    | Generic dataset provenance record. |
 //! | [`error`]     | always on    | Shared `ArchiveError` type. |
-//! | [`vsop`]      | `vsop`       | VSOP87A/E coefficient tables and accessor types. |
-//! | [`elp`]       | `elp`        | ELP2000-82B lunar theory coefficient tables. |
-//! | [`time`]      | `time`       | IERS UTC-TAI / ΔT / EOP types, parsers, and (with `fetch`) download manager. |
-//! | [`jpl`]       | `jpl`        | JPL DE440/DE441 dataset metadata (download/cache with `fetch`). |
-//! | [`nutation`]  | `nutation`   | IAU 2000A/2000B nutation coefficient tables (MHB2000). |
-//! | [`gravity`]   | `gravity`    | EGM2008 geopotential coefficients (low-degree subset). |
-//! | [`atmosphere`]| `atmosphere` | NRLMSISE-00 atmosphere model table. |
-//! | [`frames`]    | `frames`     | SPICE-style frame definition references (stub). |
-//! | [`constants`] | `constants`  | SPICE-style body-constant references (stub). |
-//! | [`lagrange`]  | `lagrange`   | Sun-Earth Lagrange Chebyshev kernel references (stub). |
-//! | [`pluto`]     | `pluto`      | Pluto abbreviated series — Meeus (1998) (stub). |
+//! | `vsop`      | `vsop`       | VSOP87A/E coefficient tables and accessor types. |
+//! | `vsop_compact` | `vsop-compact` | Compact embedded planetary positions. |
+//! | `elp`       | `elp`        | ELP2000-82B lunar theory coefficient tables. |
+//! | `elp_compact` | `elp-compact` | Compact embedded lunar position. |
+//! | `time`      | `time`       | IERS UTC-TAI / ΔT / EOP types, parsers, and (with `fetch`) download manager. |
+//! | `jpl`       | `jpl`        | JPL DE440/DE441 dataset metadata (download/cache with `fetch`). |
+//! | `nutation`  | `nutation`   | IAU 2000A/2000B nutation coefficient tables (MHB2000). |
+//! | `gravity`   | `gravity`    | EGM2008 geopotential coefficients (low-degree subset). |
+//! | `atmosphere`| `atmosphere` | NRLMSISE-00 atmosphere model table. |
+//! | `frames`    | `frames`     | SPICE-style frame definition references (stub). |
+//! | `constants` | `constants`  | SPICE-style body-constant references (stub). |
+//! | `lagrange`  | `lagrange`   | Sun-Earth Lagrange Chebyshev kernel references (stub). |
+//! | `pluto`     | `pluto`      | Pluto abbreviated series — Meeus (1998) (stub). |
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
