@@ -8,8 +8,7 @@
 //! produced the derived artefact, and when it was generated.
 //!
 //! Domain-specific provenance types, such as `TimeDataProvenance` with the
-//! `time` feature enabled,
-//! extend or complement this with additional per-format fields.
+//! `time` feature enabled, add fields specific to each data format.
 
 use alloc::string::String;
 
