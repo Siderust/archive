@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Refresh and release siderust-archive from a clean, full main checkout."""
+"""Validate Archive metadata, prepare data-only patches, and publish existing tags."""
 
 import argparse
 from datetime import datetime, timezone
 import hashlib
+from http.client import IncompleteRead
 import io
 import json
 import os
@@ -17,12 +18,18 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 CRATE = "siderust-archive"
-VERSION = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
+NUMBER = r"(?:0|[1-9][0-9]*)"
+CORE = rf"{NUMBER}\.{NUMBER}\.{NUMBER}"
+PRERELEASE_ID = rf"(?:{NUMBER}|[0-9]*[A-Za-z-][0-9A-Za-z-]*)"
+BUILD_ID = r"[0-9A-Za-z-]+"
+VERSION = rf"{CORE}(?:-{PRERELEASE_ID}(?:\.{PRERELEASE_ID})*)?(?:\+{BUILD_ID}(?:\.{BUILD_ID})*)?"
+PUBLISH_ARGS = ("--locked", "--all-features", "-p", CRATE)
 RAW = "src/time/eop/raw/"
 DATASETS = tuple(RAW + name for name in (
     "UTC-TAI.history", "deltat.data", "deltat.preds", "finals2000A.all",
 ))
-DATA_PATHS = (RAW, "src/time/eop/manifest.toml", "src/time/bundled/snapshot.rs")
+DATA_PATHS = (*DATASETS, RAW + "time_data.provenance.toml",
+              "src/time/eop/manifest.toml", "src/time/bundled/snapshot.rs")
 RELEASE_FILES = ("Cargo.toml", "Cargo.lock", "CHANGELOG.md")
 MAIN = "refs/remotes/origin/main"
 
@@ -52,10 +59,25 @@ def summary(message):
             print(message, end="\n\n", file=output)
 
 
-def version_tuple(version):
-    if not re.fullmatch(VERSION, version):
-        raise Blocked(f"Invalid release version {version!r}; expected MAJOR.MINOR.PATCH")
-    return tuple(map(int, version.split(".")))
+def check_version(version):
+    if not isinstance(version, str) or not re.fullmatch(VERSION, version):
+        raise Blocked(f"Invalid SemVer release version {version!r}; expected MAJOR.MINOR.PATCH"
+                      " with optional prerelease or build metadata")
+
+
+def next_patch(version):
+    if not re.fullmatch(CORE, version):
+        raise Blocked(f"Automatic patches require a stable release baseline; found {version!r}")
+    major, minor, patch = map(int, version.split("."))
+    return f"{major}.{minor}.{patch + 1}"
+
+
+def tag_version(tag):
+    if not tag.startswith("v"):
+        raise Blocked(f"Expected a v-prefixed version tag; got {tag!r}")
+    version = tag[1:]
+    check_version(version)
+    return version
 
 
 def current_version(ref=None):
@@ -68,7 +90,7 @@ def current_version(ref=None):
               if item["name"] == CRATE and "source" not in item]
     if package["name"] != CRATE or locked != [version]:
         raise Blocked(f"Version mismatch at {ref or 'HEAD'}: Cargo.toml={version}, Cargo.lock={locked}")
-    version_tuple(version)
+    check_version(version)
     return version
 
 
@@ -77,8 +99,10 @@ def change_entry(text, version, date=None, body=None):
     headings = list(re.finditer(r"^## (?!#)(.*)$", text, re.MULTILINE))
     entries = {}
     for i, heading in enumerate(headings):
-        if match := re.match(r"\[([^\]]+)\]", heading[1]):
+        if match := re.fullmatch(r"\[([^\]]+)\](?: - [0-9]{4}-[0-9]{2}-[0-9]{2})?", heading[1]):
             key = match[1]
+            if key != "Unreleased":
+                check_version(key)
             if key in entries:
                 raise Blocked(f"Duplicate CHANGELOG.md section [{key}]")
             end = headings[i + 1].start() if i + 1 < len(headings) else len(text)
@@ -126,7 +150,7 @@ def require_ancestor(commit, head, label):
     result = run("git", "merge-base", "--is-ancestor", commit, head, check=False)
     if result.returncode == 1:
         raise Blocked(f"{label} is divergent from main ({commit} vs {head}); "
-                      "prepare a new version on main and use Publish. Preserve existing tags.")
+                      "prepare a new version on main and push its tag. Preserve existing tags.")
     result.check_returncode()
 
 
@@ -140,14 +164,14 @@ def validate_tag(version, commit, head):
 
 
 def data_only(path):
-    return path.startswith(RAW) or path in DATA_PATHS[1:]
+    return path in DATA_PATHS
 
 
 def changes(*args):
     return [path for path in git(*args).split("\0") if path]
 
 
-def automatic_datasets(base, head):
+def require_data_only_history(base, head):
     # Inspect individual commits, including both sides and resolutions of merges.
     # A later revert of non-data work does not authorize automatic publication.
     history = changes("log", "--format=", "--name-only", "-z", "--diff-merges=separate",
@@ -156,22 +180,25 @@ def automatic_datasets(base, head):
     if outside:
         raise Blocked("Non-data changes since the release tag: " + ", ".join(outside)
                       + ". Prepare a reviewed release through Publish.")
-    return changes("diff", "--name-only", "-z", base, head, "--", *DATASETS)
 
 
 def request(url, headers=None, allow_missing=False):
-    try:
-        request = Request(url)
-        for key, value in (headers or {}).items():
-            request.add_unredirected_header(key, value)
-        with urlopen(request, timeout=20) as response:
-            return response.read()
-    except HTTPError as error:
-        if error.code == 404 and allow_missing:
-            return None
-        raise Blocked(f"HTTP {error.code} checking {url}") from error
-    except (URLError, TimeoutError) as error:
-        raise Blocked(f"Could not check {url}: {error}") from error
+    query = Request(url)
+    for key, value in (headers or {}).items():
+        query.add_unredirected_header(key, value)
+    for delay in (1, 2, 4, None):
+        try:
+            with urlopen(query, timeout=15) as response:
+                return response.read()
+        except HTTPError as error:
+            if error.code == 404 and allow_missing:
+                return None
+            if delay is None or error.code not in (408, 429, 500, 502, 503, 504):
+                raise Blocked(f"HTTP {error.code} checking {url}") from error
+        except (URLError, TimeoutError, IncompleteRead) as error:
+            if delay is None:
+                raise Blocked(f"Could not check {url}: {error}") from error
+        time.sleep(delay)
 
 
 def registry_entry(version):
@@ -193,6 +220,9 @@ def verify_published(version, commit, entry):
         raise Blocked(f"Registry checksum mismatch for {filename}")
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as package:
         info = json.load(package.extractfile(f"{filename}/.cargo_vcs_info.json"))
+        manifest = tomllib.loads(package.extractfile(f"{filename}/Cargo.toml").read().decode())
+    if (manifest["package"]["name"], manifest["package"]["version"]) != (CRATE, version):
+        raise Blocked(f"Registry archive {filename} has mismatched Cargo metadata")
     if info["git"].get("dirty") or info["git"]["sha1"] != commit or info["path_in_vcs"]:
         raise Blocked(f"Existing crates.io version {version} does not match release commit {commit}")
 
@@ -207,18 +237,34 @@ def github_release(version):
     return json.loads(result) if result else None
 
 
-def require_credentials(entry):
-    if not entry and not os.getenv("CARGO_REGISTRY_TOKEN"):
-        raise Blocked("CARGO_REGISTRY_TOKEN is missing; configure it before creating a release tag")
+def check_metadata():
+    version = current_version()
+    change_entry(Path("CHANGELOG.md").read_text(), version)
+    return version
 
 
-def validate_candidate(*, dirty=False):
-    run("cargo", "run", "--locked", "-p", "archive-validate", "--", "MANIFEST.toml")
-    run("cargo", "test", "--all-features", "--locked")
-    args = ("--allow-dirty",) if dirty else ()
-    run("cargo", "publish", "--dry-run", "--locked", "--all-features", "-p", CRATE, *args)
-    run("bash", "scripts/check-packaged-docs.sh", *args)
-    summary("Release candidate passed manifest, test, packaging, and docs.rs checks.")
+def validate_candidate():
+    run("bash", "scripts/check-release.sh")
+    run("bash", "scripts/check-packaged-docs.sh")
+    require_clean()
+    summary("Release candidate passed Rust, manifest, packaging, and docs.rs checks.")
+
+
+def require_clean():
+    if git("status", "--porcelain"):
+        raise Blocked("Release requires a clean checkout")
+
+
+def resolve_tag(tag, expected):
+    version = tag_version(tag)
+    commit = tag_commit(version)
+    if not commit:
+        raise Blocked(f"Missing {tag}. Push the reviewed annotated version tag before publishing.")
+    # A tag-push event can refer to an annotated tag object or its peeled commit.
+    if expected and expected not in (commit, git("rev-parse", tag_ref(version))):
+        raise Blocked(f"{tag} points at {commit}, expected {expected}")
+    validate_tag(version, commit, git("rev-parse", MAIN))
+    return version, commit
 
 
 def prepare_patch(version, new_version, datasets):
@@ -256,147 +302,142 @@ def refresh():
     run("cargo", "run", "--locked", "-p", "archive-validate", "--", "MANIFEST.toml")
     summary("Snapshot integrity passed. Datasets changed: "
             + (", ".join(f"`{Path(path).name}`" for path in datasets) or "none") + ".")
-    if datasets:
-        run("cargo", "test", "--all-features", "--locked")
-        git("add", "-A", "--", *DATA_PATHS)
-        git("commit", "-m", "chore: refresh IERS/USNO time-data snapshot")
-        summary(f"Prepared validated snapshot commit `{git('rev-parse', 'HEAD')}`.")
     return datasets
 
 
-def push_snapshot(head):
-    run("git", "push", "origin", "HEAD:refs/heads/main")
+def push_patch(base, version):
+    # The candidate is a child of base. The lease also rejects a remote rewind
+    # or a concurrent change to main. The tag ref is never forced.
+    run("git", "push", "--atomic", f"--force-with-lease=refs/heads/main:{base}",
+        "origin", "HEAD:refs/heads/main", tag_ref(version))
+
+
+def prepare():
+    require_clean()
+    base = git("rev-parse", "HEAD")
+    if base != git("rev-parse", MAIN):
+        raise Blocked("Checkout is stale; rerun maintenance from current main")
+    if not refresh():
+        summary("Upstream scientific payloads are unchanged. No patch required.")
+        return
+    current = check_metadata()
+    commit = tag_commit(current)
+    if not commit:
+        raise Blocked(f"Missing baseline v{current}. Publish the reviewed release before maintenance.")
+    validate_tag(current, commit, base)
+    require_data_only_history(commit, base)
+    datasets = changes("diff", "--no-renames", "--name-only", "-z", commit, "--", *DATASETS)
+    if not datasets:
+        summary("The refreshed snapshot matches the published payloads. No patch required.")
+        return
+
+    entry = registry_entry(current)
+    existing = github_release(current)
+    if not entry or not existing or existing["draft"]:
+        raise Blocked(f"Release v{current} is incomplete. Resume that version through Publish.")
+    verify_published(current, commit, entry)
+
+    version = next_patch(current)
+    if tag_commit(version) or registry_entry(version) or github_release(version):
+        raise Blocked(f"Automatic patch v{version} already exists; inspect its release state")
+    prepare_patch(current, version, datasets)
+    check_metadata()
+    git("add", "-A", "--", *DATA_PATHS, *RELEASE_FILES)
+    git("commit", "-m", f"chore(release): {CRATE} v{version} with refreshed time data")
+    validate_candidate()
+    commit = git("rev-parse", "HEAD")
+    tag = f"v{version}"
+    git("tag", "-a", tag, "-m", f"Release {CRATE} {tag}")
+    push_patch(base, version)
     repo = os.environ["GITHUB_REPOSITORY"]
-    summary(f"Saved the validated [snapshot commit](https://github.com/{repo}/commit/{head}) on main.")
+    summary(f"Reserved [tag {tag}](https://github.com/{repo}/tree/{tag}) "
+            f"at [`{commit}`](https://github.com/{repo}/commit/{commit}). "
+            "If publication fails, resume this tag through Publish.")
+    with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+        print(f"tag={tag}\ncommit={commit}", file=output)
 
 
-def publish(version, commit, entry, release):
-    require_credentials(entry)
-    if entry:
-        verify_published(version, commit, entry)
-        summary(f"crates.io already contains {CRATE} {version} from this commit.")
-    else:
-        if release:
-            raise Blocked(f"GitHub Release v{version} exists without a matching crates.io version")
-        run("cargo", "publish", "--locked", "-p", CRATE)
-        for delay in (1, 2, 4, 8, 16, 0):
-            if entry := registry_entry(version):
-                verify_published(version, commit, entry)
-                summary(f"Verified {CRATE} {version} in the crates.io index.")
-                break
+def await_registry(version):
+    for delay in (0, 2, 4, 8, 16, 30, 30):
+        if delay:
             time.sleep(delay)
-        else:
-            raise Blocked(f"crates.io has not indexed {version} yet; retry Publish for the same version")
-    if not release:
-        _, notes = change_entry(Path("CHANGELOG.md").read_text(), version)
-        run("gh", "release", "create", f"v{version}", "--verify-tag",
-            "--title", f"{CRATE} v{version}", "--notes", notes)
-    elif release["draft"]:
-        raise Blocked(f"GitHub Release v{version} is a draft; review it before completing publication")
+        if entry := registry_entry(version):
+            return entry
+    raise Blocked(f"crates.io has not indexed {version}; inspect the Cargo output "
+                  "and resume Publish for the same tag")
+
+
+def publish(tag, expected):
+    require_clean()
+    version, commit = resolve_tag(tag, expected)
+    if git("rev-parse", "HEAD") != commit:
+        raise Blocked(f"Checkout must be at the validated commit for {tag}")
+    _, notes = change_entry(Path("CHANGELOG.md").read_text(), version)
+    # Compare with the live tag before either external mutation. Tag rules
+    # should prevent moving or deleting version tags.
+    live = git("ls-remote", "--exit-code", "origin", tag_ref(version)).split()[0]
+    if live != git("rev-parse", tag_ref(version)):
+        raise Blocked(f"The remote {tag} changed after checkout")
+    entry = registry_entry(version)
+    existing = github_release(version)
+    if existing and existing["draft"]:
+        raise Blocked(f"GitHub Release {tag} is a draft; review it before resuming")
+    if not entry:
+        if existing:
+            raise Blocked(f"GitHub Release {tag} exists without a matching crates.io version")
+        if not os.getenv("CARGO_REGISTRY_TOKEN"):
+            raise Blocked("Configure CARGO_REGISTRY_TOKEN for the crates.io publication job")
+        # A timeout or duplicate response can mean the upload already happened.
+        # Reconcile via the index and source identity; never blindly upload again.
+        result = run("cargo", "publish", *PUBLISH_ARGS, check=False)
+        if result.returncode:
+            summary("Cargo publish reported an error. Checking whether crates.io accepted the upload.")
+        entry = await_registry(version)
+    verify_published(version, commit, entry)
+    require_clean()
+
+    prerelease = "-" in version.split("+", 1)[0]
+    options = ("--title", f"{CRATE} {tag}", "--notes", notes)
+    if not existing:
+        flags = ("--prerelease",) if prerelease else ()
+        run("gh", "release", "create", tag, "--verify-tag", *options, *flags)
+    elif (existing.get("body") or "").strip() != notes or existing["prerelease"] != prerelease:
+        run("gh", "release", "edit", tag, *options, f"--prerelease={str(prerelease).lower()}")
     repo = os.environ["GITHUB_REPOSITORY"]
     summary(f"Release complete for [{CRATE} {version}](https://crates.io/crates/{CRATE}/{version}). "
             f"[Commit](https://github.com/{repo}/commit/{commit}) · "
-            f"[Tag](https://github.com/{repo}/tree/v{version}) · "
-            f"[GitHub Release](https://github.com/{repo}/releases/tag/v{version}).")
+            f"[Tag](https://github.com/{repo}/tree/{tag}) · "
+            f"[GitHub Release](https://github.com/{repo}/releases/tag/{tag}).")
 
 
-def release(mode, requested):
-    if os.getenv("GITHUB_REF") != "refs/heads/main":
-        raise Blocked("Dispatch this workflow on main")
-    if git("status", "--porcelain"):
-        raise Blocked("Release requires a clean checkout")
-    main = git("rev-parse", MAIN)
-    if git("rev-parse", "HEAD") != main:
-        raise Blocked("Checkout is stale; dispatch again from the current main")
-    refreshed = refresh() if mode == "auto" else []
-    head = git("rev-parse", "HEAD")
-    current = current_version()
-    version = current if mode == "auto" else requested
-    version_tuple(version)
-    summary(f"Checking release state for `v{version}` at `{head}`.")
-    commit = tag_commit(version)
-    try:
-        if commit:
-            validate_tag(version, commit, head)
-        elif mode == "auto":
-            raise Blocked(f"Missing tag v{current} for main's Cargo version. Use Publish for the prepared release.")
-        elif version != current:
-            raise Blocked(f"Requested version {version} does not match main's Cargo version {current}")
-        datasets = automatic_datasets(commit, head) if mode == "auto" else []
-    except Blocked:
-        if refreshed:
-            push_snapshot(head)
-        raise
-
-    entry = registry_entry(version)
-    existing = github_release(version)
-    if not commit and (entry or existing):
-        raise Blocked(f"v{version} already exists externally without a matching Git tag")
-    if existing and (existing["draft"] or not entry):
-        raise Blocked(f"GitHub Release v{version} is a draft or has no matching crates.io version")
-
-    auto_patch = False
-    if mode == "auto":
-        if not (entry and existing):
-            raise Blocked(f"Release v{version} is incomplete. Resume that version through Publish.")
-        if not refreshed:
-            summary("Upstream datasets are unchanged. No new patch required.")
-            return
-        if not datasets:
-            push_snapshot(head)
-            summary("The refreshed snapshot matches the released scientific payloads. No patch required.")
-            return
-        verify_published(current, commit, entry)
-        major, minor, patch = version_tuple(current)
-        version = f"{major}.{minor}.{patch + 1}"
-        summary(f"Selecting automatic patch `v{version}` for changes since `v{current}`.")
-        if tag_commit(version) or registry_entry(version) or github_release(version):
-            raise Blocked(f"Automatic patch v{version} is already reserved; use Publish to recover")
-        require_credentials(None)
-        prepare_patch(current, version, datasets)
-        auto_patch = True
-        commit, entry, existing = None, None, None
-
-    require_credentials(entry)
-    if commit:
-        git("switch", "--detach", commit)
-    change_entry(Path("CHANGELOG.md").read_text(), version)
-    if not entry:
-        validate_candidate(dirty=auto_patch)
-    modified = set(changes("diff", "--no-renames", "--name-only", "-z", "HEAD"))
-    untracked = changes("ls-files", "--others", "--exclude-standard", "-z")
-    if modified != (set(RELEASE_FILES) if auto_patch else set()) or untracked:
-        raise Blocked("Release validation left unexpected changes in the checkout")
-    if not commit:
-        if auto_patch:
-            git("add", "--", *RELEASE_FILES)
-            git("commit", "-m", f"chore(release): {CRATE} v{version}")
-        commit = git("rev-parse", "HEAD")
-        if not auto_patch:
-            remote_main = git("ls-remote", "--exit-code", "origin", "refs/heads/main").split()[0]
-            if remote_main != commit:
-                raise Blocked("Main advanced during validation; dispatch again from the reviewed commit")
-        git("tag", "-a", f"v{version}", "-m", f"Release {CRATE} v{version}")
-        refs = ("HEAD:refs/heads/main", tag_ref(version)) if auto_patch else (tag_ref(version),)
-        run("git", "push", "--atomic", "origin", *refs)
-        repo = os.environ["GITHUB_REPOSITORY"]
-        if auto_patch:
-            summary(f"Saved the validated [snapshot commit](https://github.com/{repo}/commit/{head}) on main.")
-        summary(f"Reserved [annotated tag v{version}](https://github.com/{repo}/tree/v{version}) "
-                f"at [`{commit}`](https://github.com/{repo}/commit/{commit}). "
-                "Retry this version through Publish if any remaining step fails.")
-    publish(version, commit, entry, existing)
+def validate_tagged_candidate(tag, expected):
+    require_clean()
+    _, commit = resolve_tag(tag, expected)
+    git("switch", "--detach", commit)
+    check_metadata()
+    summary(f"Validating release tag `{tag}` at `{commit}`.")
+    validate_candidate()
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("auto", "manual"))
-    parser.add_argument("--version")
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("check-metadata")
+    commands.add_parser("prepare")
+    for name in ("validate-tag", "publish"):
+        command = commands.add_parser(name)
+        command.add_argument("--tag", required=True)
+        command.add_argument("--commit", default="")
     args = parser.parse_args()
-    if args.mode == "manual" and not args.version:
-        parser.error("manual requires --version")
     try:
-        release(args.mode, args.version)
+        if args.command == "check-metadata":
+            summary(f"Cargo metadata and changelog agree on {check_metadata()}.")
+        elif args.command == "prepare":
+            prepare()
+        elif args.command == "validate-tag":
+            validate_tagged_candidate(args.tag, args.commit)
+        else:
+            publish(args.tag, args.commit)
     except Blocked as error:
         summary(f"Release blocked. {error}")
         print("::error::Release blocked. See the job summary.")

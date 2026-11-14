@@ -36,41 +36,13 @@ jobs:
             ~/.cargo/git
             target
           key: cargo-${{ runner.os }}-${{ matrix.toolchain }}-${{ hashFiles('Cargo.toml', 'Cargo.lock') }}
-      - run: cargo fmt --all -- --check
-      - run: cargo clippy --all-features --all-targets -- -D warnings
-      - name: Check no_std (host)
-        run: cargo check --no-default-features
-      - name: Check no_std + scientific tables
-        run: >
-          cargo check --no-default-features
-          --features vsop,elp,nutation,gravity,atmosphere,frames,constants,lagrange,pluto,time,jpl,bundled-time
-      - name: Check no_std target (thumbv7em-none-eabihf)
-        run: cargo check --target thumbv7em-none-eabihf --no-default-features
-      - name: Check no_std target + scientific tables
-        run: >
-          cargo check --target thumbv7em-none-eabihf --no-default-features
-          --features vsop,elp,nutation,gravity,atmosphere,frames,constants,lagrange,pluto,time,jpl,bundled-time
-      - name: Check compact VSOP87E alone on a bare-metal target
-        run: cargo check --target thumbv7em-none-eabihf --no-default-features --features vsop-compact
-      - name: Check compact ELP on a bare-metal target
-        run: cargo check --target thumbv7em-none-eabihf --no-default-features --features elp-compact
-      - run: cargo test --no-default-features --features elp-compact
-      - run: cargo test --no-default-features --features vsop-compact,elp-compact
-      - run: cargo test --no-default-features --features vsop-compact
-      - run: cargo test --no-default-features
-      - run: cargo test --features time
-      - run: cargo test --features time,fetch
-      - run: cargo test
-      - run: cargo test --all-features
-      - name: Validate manifests
-        run: cargo run -p archive-validate -- MANIFEST.toml
-      - name: Verify publishability
-        run: cargo publish --dry-run --locked --all-features -p siderust-archive
+      - run: bash scripts/check-release.sh
 
   release-scripts:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: python3 scripts/archive-release.py check-metadata
       - run: python3 -B -m unittest discover -s scripts -p 'test_archive_release.py'
 
   packaged-docs:

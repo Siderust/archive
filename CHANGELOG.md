@@ -20,7 +20,9 @@ The format is based on Keep a Changelog, and this project uses Semantic Versioni
 
 ### Fixed
 - Restore the all-features docs.rs build with the supported rustdoc feature gate.
-- Validate and synchronize the release commit, tag, crates.io package, and GitHub Release.
+- Publish from annotated version tags and resume partial releases using the same tag.
+- Run scheduled data-only patch releases through the same validation and publication
+  workflow, with an atomic push of the update commit and tag.
 - Retry transient IERS/USNO download failures and retain the committed provenance when scientific data are unchanged.
 
 ### Changed

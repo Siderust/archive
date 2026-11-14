@@ -1,21 +1,30 @@
 name: Publish
 
 on:
+  push:
+    tags: ["v[0-9]*"]
   workflow_dispatch:
     inputs:
       version:
-        description: "Prepared version on main or an existing release version to resume (e.g. 0.1.6)"
+        description: "Existing tag version to resume (e.g. 0.2.0, without v)"
         required: true
         type: string
 
-permissions:
-  contents: write
+permissions: {}
+
+concurrency:
+  group: archive-release
+  queue: max
+  cancel-in-progress: false
 
 jobs:
   publish:
+    if: github.event_name == 'push' || github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
     uses: ./.github/workflows/archive-release.yml
     with:
-      mode: manual
-      version: ${{ inputs.version }}
+      tag: ${{ github.event_name == 'push' && github.ref_name || format('v{0}', inputs.version) }}
+      commit: ${{ github.event_name == 'push' && github.sha || '' }}
     secrets:
       CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

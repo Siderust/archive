@@ -182,17 +182,21 @@ fn install_snapshot(
     let eop_dir = archive_root.join("src/time/eop");
     let raw_dir = eop_dir.join("raw");
     let cached = staging.join("bundle");
+    validate_coverage(&raw_dir, &cached)?;
+
     let mut changed = Vec::new();
     for name in RAW_FILES {
-        if read(&cached.join(name))? != read(&raw_dir.join(name))? {
+        let candidate = fs::read_to_string(cached.join(name))
+            .map_err(|e| format!("cannot read staged {name}: {e}"))?;
+        let committed = fs::read_to_string(raw_dir.join(name))
+            .map_err(|e| format!("cannot read committed {name}: {e}"))?;
+        if !same_payload(name, &committed, &candidate) {
             changed.push(name);
         }
     }
     if changed.is_empty() {
         return Ok("All four datasets validated; scientific payloads unchanged.".into());
     }
-
-    validate_coverage(&raw_dir, &cached)?;
 
     // Generate everything in staging before touching the checkout. The workflow
     // validates the resulting manifest and commits all paths together.
@@ -203,7 +207,7 @@ fn install_snapshot(
     fs::rename(&cached, staging.join("raw")).map_err(|e| format!("cannot stage raw files: {e}"))?;
     update_manifest_files_block(&manifest, staging)?;
 
-    for name in changed.iter().copied().chain([PROVENANCE_FILE]) {
+    for name in RAW_FILES.into_iter().chain([PROVENANCE_FILE]) {
         install(&staging.join("raw").join(name), &raw_dir.join(name))?;
     }
     install(&manifest, &eop_dir.join("manifest.toml"))?;
@@ -217,8 +221,26 @@ fn install_snapshot(
     ))
 }
 
-fn read(path: &Path) -> Result<Vec<u8>, String> {
-    fs::read(path).map_err(|e| format!("cannot read {path:?}: {e}"))
+fn same_payload(name: &str, committed: &str, candidate: &str) -> bool {
+    if name == "finals2000A.all" {
+        // Preserve fixed columns, including uncertainty and Bulletin B fields
+        // that the runtime parser does not consume.
+        fn rows(text: &str) -> impl Iterator<Item = &str> {
+            text.lines()
+                .map(str::trim_end)
+                .filter(|line| !line.is_empty())
+        }
+        rows(committed).eq(rows(candidate))
+    } else {
+        fn rows(text: &str) -> impl Iterator<Item = std::str::SplitAsciiWhitespace<'_>> {
+            text.lines()
+                .map(str::split_ascii_whitespace)
+                .filter(|fields| fields.clone().next().is_some())
+        }
+        let mut candidate_rows = rows(candidate);
+        rows(committed).all(|fields| candidate_rows.next().is_some_and(|row| fields.eq(row)))
+            && candidate_rows.next().is_none()
+    }
 }
 
 fn copy(from: &Path, to: &Path) -> Result<(), String> {
@@ -614,6 +636,15 @@ mod tests {
         );
 
         let observed = fs::read_to_string(raw.join("deltat.data")).unwrap();
+        let reformatted = observed.replace(' ', "\t");
+        fs::write(cached.join("deltat.data"), &reformatted).unwrap();
+        metadata.insert(
+            "delta_t_observed_sha256".into(),
+            sha256_hex(reformatted.as_bytes()).into(),
+        );
+        assert!(install(&metadata).unwrap().contains("unchanged"));
+        assert_eq!(committed(), before);
+
         let truncated = observed.lines().take(2).collect::<Vec<_>>().join("\n");
         fs::write(cached.join("deltat.data"), &truncated).unwrap();
         assert!(manager.load_cached().is_err()); // Payload no longer matches the checksum.

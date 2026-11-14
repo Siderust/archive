@@ -3,10 +3,11 @@ name: Archive Release
 on:
   workflow_call:
     inputs:
-      mode:
+      tag:
         type: string
         required: true
-      version:
+      commit:
+        description: "Expected commit for a tag push or a generated patch"
         type: string
         default: ""
     secrets:
@@ -18,37 +19,29 @@ permissions:
 
 jobs:
   release:
-    if: github.ref == 'refs/heads/main'
-    concurrency:
-      group: archive-main-release
-      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 50
+    environment:
+      name: crates.io
+      url: https://crates.io/crates/siderust-archive
     env:
-      GIT_AUTHOR_NAME: github-actions[bot]
-      GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
-      GIT_COMMITTER_NAME: github-actions[bot]
-      GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+      RELEASE_TAG: ${{ inputs.tag }}
+      RELEASE_COMMIT: ${{ inputs.commit }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.mode == 'auto' && 'main' || github.sha }}
+          ref: ${{ inputs.commit || github.sha }}
           fetch-depth: 0
-      - uses: dtolnay/rust-toolchain@nightly
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
-      - name: Refresh or publish
+        with:
+          components: rustfmt, clippy
+          targets: thumbv7em-none-eabihf
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: Validate the exact tagged commit
+        run: python3 scripts/archive-release.py validate-tag --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT"
+      - name: Publish and verify crate, then synchronize the GitHub Release
         env:
-          RELEASE_MODE: ${{ inputs.mode }}
-          RELEASE_VERSION: ${{ inputs.version }}
           GH_TOKEN: ${{ github.token }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: python3 scripts/archive-release.py "$RELEASE_MODE" --version "$RELEASE_VERSION"
-
-  invalid-ref:
-    if: github.ref != 'refs/heads/main'
-    permissions: {}
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          echo "::error::Dispatch archive maintenance and publication from main."
-          exit 1
+        run: python3 scripts/archive-release.py publish --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT"
