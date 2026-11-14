@@ -15,7 +15,11 @@ metadata in TOML, keeps raw payloads in their native formats, and exposes only
 the Rust bindings needed to parse, verify, fetch, or bundle those datasets.
 
 > **Pre-1.0 archive:** manifest shape and feature-gated APIs may still change.
-> Release notes live in [CHANGELOG.md](CHANGELOG.md).
+> [Release v0.2.0](https://github.com/Siderust/archive/releases/tag/v0.2.0) includes
+> compact embedded planetary and lunar ephemerides.
+> See [the crate on crates.io](https://crates.io/crates/siderust-archive/0.2.0),
+> [the API documentation](https://docs.rs/siderust-archive/0.2.0/siderust_archive/),
+> and [the changelog](CHANGELOG.md#020---2026-11-13).
 
 ## Scope
 
@@ -37,21 +41,21 @@ the Rust bindings needed to parse, verify, fetch, or bundle those datasets.
 
 ```toml
 [dependencies]
-siderust-archive = "0.1"
+siderust-archive = "0.2.0"
 ```
 
 For `no_std` + `alloc` (manifest, checksum, provenance, and scientific tables):
 
 ```toml
 [dependencies]
-siderust-archive = { version = "0.1", default-features = false }
+siderust-archive = { version = "0.2.0", default-features = false }
 ```
 
 IERS time-data parsers and the bundled offline snapshot:
 
 ```toml
 [dependencies]
-siderust-archive = { version = "0.1", features = ["time"] }
+siderust-archive = { version = "0.2.0", features = ["time"] }
 ```
 
 Runtime download/cache support for current IERS/USNO time data and JPL kernel
@@ -59,14 +63,14 @@ metadata (`fetch` requires `std`):
 
 ```toml
 [dependencies]
-siderust-archive = { version = "0.1", features = ["fetch"] }
+siderust-archive = { version = "0.2.0", features = ["fetch"] }
 ```
 
 Planetary and geophysical tables are opt-in and work with or without `std`:
 
 ```toml
 [dependencies]
-siderust-archive = { version = "0.1", default-features = false, features = ["vsop", "elp", "nutation"] }
+siderust-archive = { version = "0.2.0", default-features = false, features = ["vsop", "elp", "nutation"] }
 ```
 
 The crate declares its own `[workspace]`, so it is not absorbed into a parent
@@ -97,7 +101,7 @@ workspace when used through a local `path` dependency.
 ## Compact embedded planetary positions
 
 ```toml
-siderust-archive = { version = "0.1.7", default-features = false, features = ["vsop-compact"] }
+siderust-archive = { version = "0.2.0", default-features = false, features = ["vsop-compact"] }
 ```
 
 `siderust_archive::vsop_compact` provides a checked function per body, such as
@@ -116,7 +120,7 @@ size, performance, source checksums, and reproduction commands.
 ## Compact embedded lunar position
 
 ```toml
-siderust-archive = { version = "0.1.8", default-features = false, features = ["elp-compact"] }
+siderust-archive = { version = "0.2.0", default-features = false, features = ["elp-compact"] }
 ```
 
 `elp_compact::try_moon_geocentric(jd_tdb)` returns a geometric Cartesian
@@ -184,8 +188,9 @@ runs Mondays at 05:23 UTC and can also be dispatched from `main`. It refreshes
 maintenance procedures.
 
 The updater stages all four downloads, checks parsing and coverage against the
-committed data, and compares the scientific files byte for byte. A changed
-snapshot carries the fetch time and SHA-256 hashes in
+committed data, and ignores whitespace-only changes that preserve field
+values and fixed-width columns. A changed snapshot carries the fetch time and
+SHA-256 hashes in
 `time_data.provenance.toml`. It also updates the checksum and byte-count
 entries in `src/time/eop/manifest.toml` and regenerates
 `src/time/bundled/snapshot.rs`. Identical payloads retain the committed
@@ -207,15 +212,16 @@ status. Runtime fetch remains available with the `fetch` feature.
    `## [VERSION]` in `CHANGELOG.md`. Wait for CI to pass on the reviewed
    release commit on `main`.
 2. Fetch `main` and confirm that the commit you intend to tag has the
-   version and notes you reviewed. For example, to publish `0.2.0` after
-   merging its preparation PR:
+   version and notes you reviewed. Set `version` to the version from that
+   commit:
 
    ```bash
    git switch main
    git pull --ff-only origin main
    python3 scripts/archive-release.py check-metadata
-   git tag -a v0.2.0 -m "Release v0.2.0"
-   git push origin refs/tags/v0.2.0
+   version=MAJOR.MINOR.PATCH
+   git tag -a "v${version}" -m "Release v${version}"
+   git push origin "refs/tags/v${version}"
    ```
 
 3. Open the [Publish workflow](https://github.com/Siderust/archive/actions/workflows/publish.yml).
