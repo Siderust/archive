@@ -33,11 +33,12 @@ jobs:
           ref: ${{ inputs.commit || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      # Install stable last so unqualified Cargo commands use it.
+      - uses: dtolnay/rust-toolchain@nightly
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
           targets: thumbv7em-none-eabihf
-      - uses: dtolnay/rust-toolchain@nightly
       - name: Validate the exact tagged commit
         run: python3 scripts/archive-release.py validate-tag --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT"
       - name: Publish and verify crate, then synchronize the GitHub Release
