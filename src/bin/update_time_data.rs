@@ -8,7 +8,7 @@
 //! ------------
 //! 1. Downloads the four upstream IERS / USNO files (UTC-TAI.history,
 //!    deltat.data, deltat.preds, finals2000A.all) using
-//!    [`TimeDataManager`](siderust_archive::time::TimeDataManager) into a fresh
+//!    [`TimeDataManager`] into a fresh
 //!    cache directory.
 //! 2. Verifies that the bundle parses correctly and computes SHA-256 hashes.
 //! 3. Prepares the complete validated update before installing it into
