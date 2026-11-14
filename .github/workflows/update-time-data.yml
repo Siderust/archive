@@ -33,11 +33,12 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+      # Install stable last so unqualified Cargo commands use it.
+      - uses: dtolnay/rust-toolchain@nightly
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
           targets: thumbv7em-none-eabihf
-      - uses: dtolnay/rust-toolchain@nightly
       - name: Prepare and reserve a data-only patch
         id: prepare
         env:
