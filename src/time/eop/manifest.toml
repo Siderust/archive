@@ -79,12 +79,12 @@ bytes  = 1483
 [[files]]
 path   = "raw/finals2000A.all"
 format = "iers-finals2000a"
-sha256 = "4c2308a3a782f561a84f549ab0e074e745aa950facd9dff56e2e60a7eac8f042"
-bytes  = 3776544
+sha256 = "51cb9676d9c4775c4d344b328bc3eb1ac3940b089ce4b659ccac883637d09dd6"
+bytes  = 3777860
 
 [[files]]
 path   = "raw/time_data.provenance.toml"
 format = "siderust-time-provenance-toml"
-sha256 = "5b3670585321e0cb1de4f4c7de5a2889a851225b6858a3c3992308aa64ba661b"
+sha256 = "703231e35a2110d730521cfb8d20ea0a178b3256c9aaf6f7f7225b102a1a0a2c"
 bytes  = 396
 # END GENERATED FILE ENTRIES — update-time-data
