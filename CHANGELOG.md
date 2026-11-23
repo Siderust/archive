@@ -6,6 +6,12 @@ The format is based on Keep a Changelog, and this project uses Semantic Versioni
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-23
+
+### Changed
+- Refreshed the bundled IERS/USNO snapshot.
+  - `finals2000A.all`
+
 ## [0.2.1] - 2026-11-16
 
 ### Changed
